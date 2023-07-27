@@ -1,4 +1,10 @@
 # describealign
+Combines videos with matching audio files (e.g. audio descriptions).  Works by aligning parts of the audio file to matching parts of the video's sound.
+
+## Quickstart
+
+Create a copy of a video file with the sound replaced by an audio description:
+```
 describealign video.mp4 audio_desc.mp3
 ```
 
@@ -12,7 +18,7 @@ describealign is available with pip:
 ```bash
 pip install describealign
 ```
-Note: You may need to add the folder Python's pip.exe is in to your system path. It might be something like: "C:/Users/User/AppData/Local/Programs/Python/Python310/Scripts" Don't forget to restart command prompt after updating the PATH!
+Note: You may need to add the folder Python's pip.exe is in to your system path. It might be something like: "C:/Users/<User>/AppData/Local/Programs/Python/Python310/Scripts" Don't forget to restart command prompt after updating the PATH!
 
 The script can then be run from console/command prompt in any directory with:
 ```bash
