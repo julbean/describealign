@@ -56,6 +56,10 @@ This plot shows a number of small pauses in the audio description starting aroun
 
 ## Advanced Usage
 
+### directories
+
+describealign can be given a directory of videos and a directory of audio files rather than individual files.  describealign assumes files from the two directories correspond based on their lexicographic order.
+
 ### boost
 
 describealign also has a few other experimental capabilities, like boosting the volume of audio descriptions relative to the video's sound with the "--boost x" argument, where x is in decibels. "--boost 3" approximately doubles the audio description volume, while "--boost -3" approximately halves it.
