@@ -43,6 +43,8 @@ When new versions are released, the pip package can be updated with:
 pip install describealign --upgrade
 ```
 
+Note: users with multiple python versions may need to use pip3 rather than pip.
+
 ## Testing Installation
 
 The installation can be tested on a clip from the 1929 comedy short [Ask Dad](https://archive.org/details/ask_dad), with the first part of an [audio description](https://archive.org/details/MoviesForTheBlind01-askDad) provided by Valerie H. in her podcast [Movies For the Blind.](https://moviesfortheblind.com/) Download the trimmed versions from the test_media folder in this repository, change to the directory with the files and run:
