@@ -52,7 +52,7 @@ If the full video (22 minutes) and audio description (27 minutes) are used inste
 
 <img src="https://github.com/julbean/describealign/blob/main/readme_media/ask_dad.png" alt="Ask Dad Alignment" align="middle" width="50%"/>
 
-This plot shows a number of small pauses in the audio description starting around 10 minutes in, which add up to a total offset of 30 seconds by the end of the video. The jump discontinuities have smoothed out by stretching the audio description. All of the audio was replaced except for a segment around the 9 minute mark in which the video's original audio was kept, as the replacement audio would have been too noticably distorted (i.e. more than 10% stretched).
+This plot shows a number of small pauses in the audio description starting around 10 minutes in, which add up to a total offset of 30 seconds by the end of the video. The jump discontinuities have been smoothed out by stretching the audio description. All of the audio was replaced except for a segment around the 9 minute mark in which the video's original audio was kept, as the replacement audio would have been too noticably distorted (i.e. more than 10% stretched).
 
 ## Advanced Usage
 
