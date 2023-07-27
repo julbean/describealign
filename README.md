@@ -46,7 +46,7 @@ This produces two outputs, a new video file "videos_with_ad/ad_ask_dad_trimmed.m
 
 <img src="https://github.com/julbean/describealign/blob/main/readme_media/ask_dad_trimmed.png" alt="Ask Dad Trimmed Alignment" align="middle" width="50%"/>
 
-The plot shows the audio description is aligned with the video apart from a fixed offset of 199 seconds, which means Valeria starts describing Ask Dad 199 seconds into the episode. The y-scale is so zoomed in that the sub-second dithering of tokens (used to fine-tune alignment) is visible as blue streaks.
+The plot shows the audio description is aligned with the video apart from a fixed offset of 199 seconds, which means Valerie starts describing Ask Dad 199 seconds into the episode. The y-scale is so zoomed in that the sub-second dithering of tokens (used to fine-tune alignment) is visible as blue streaks.
 
 If the full video (22 minutes) and audio description (27 minutes) are used instead, describealign runs in about 90 seconds, using up about 3 GB of RAM, and we get the following plot:
 
