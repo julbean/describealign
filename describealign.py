@@ -25,7 +25,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 '''
 
 VIDEO_EXTENSIONS = set(['mp4', 'mkv', 'avi', 'mov', 'webm', 'mkv', 'm4v', 'flv', 'vob'])
-AUDIO_EXTENSIONS = set(['mp3', 'm4a', 'opus', 'wav', 'aac', 'flac'])
+AUDIO_EXTENSIONS = set(['mp3', 'm4a', 'opus', 'wav', 'aac', 'flac', 'ac3', 'mka'])
 OUTPUT_FILE_PREPEND_TEXT = "ad_"
 OUTPUT_DIR = "videos_with_ad"
 PLOT_DIR = "alignment_plots"
@@ -77,6 +77,9 @@ def get_sorted_filenames(path, extensions):
   if os.path.isdir(path):
     files = glob.glob(path + "/*")
   else:
+    if not os.path.isfile(path):
+      print("No file found at:", path)
+      raise RuntimeError("No valid file found at input path.")
     files = [path]
   files = [file for file in files if os.path.splitext(file)[1][1:] in extensions]
   if len(files) == 0:
@@ -631,7 +634,7 @@ def write_replaced_media_to_disk(output_filename, video_file, video_arr):
   #   ffmpeg bug warning: [matroska @ 0000000002c814c0] Starting new cluster due to timestamp
   # more info about the bug and fix: https://reddit.com/r/ffmpeg/comments/efddfs/
   write_command = ffmpeg.output(video_arr_pipe, original_video, output_filename,
-                                acodec='libmp3lame', vcodec='copy', scodec='copy',
+                                acodec='aac', vcodec='copy', scodec='copy',
                                 max_interleave_delta='0', loglevel='fatal')
   ffmpeg_caller = write_command.run_async(pipe_stdin=True, cmd=imageio_ffmpeg.get_ffmpeg_exe())
   ffmpeg_caller.stdin.write(video_arr.astype(np.int16).T.tobytes())
