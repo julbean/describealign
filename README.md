@@ -1,5 +1,6 @@
 # describealign
-Combines videos with matching audio files (e.g. audio descriptions).  Works by aligning parts of the audio file to matching parts of the video's sound.
+Combines videos with matching audio files (e.g. audio descriptions). Works by aligning parts of the audio file to matching parts of the video's sound.
+
 
 ## Quickstart
 
@@ -9,6 +10,7 @@ describealign video.mp4 audio_desc.mp3
 ```
 
 Note: media longer than an hour should only be processed on computers with at least 16 GB of RAM.
+
 
 ## Installation
 
@@ -45,6 +47,7 @@ pip install describealign --upgrade
 
 Note: users with multiple python versions may need to use pip3 rather than pip.
 
+
 ## Testing Installation
 
 The installation can be tested on a clip from the 1929 comedy short [Ask Dad](https://archive.org/details/ask_dad), with the first part of an [audio description](https://archive.org/details/MoviesForTheBlind01-askDad) provided by Valerie H. in her podcast [Movies For the Blind.](https://moviesfortheblind.com/) Download the trimmed versions from the test_media folder in this repository, change to the directory with the files and run:
@@ -65,11 +68,12 @@ If the full video (22 minutes) and audio description (27 minutes) are used inste
 
 This plot shows a number of small pauses in the audio description starting around 10 minutes in, which add up to a total offset of 30 seconds by the end of the video. The jump discontinuities have been smoothed out by stretching the audio description. All of the audio was replaced except for a segment around the 9 minute mark in which the video's original audio was kept, as the replacement audio would have been too noticably distorted (i.e. more than 10% stretched).
 
+
 ## Advanced Usage
 
 ### directories
 
-describealign can be given a directory of videos and a directory of audio files rather than individual files.  describealign assumes files from the two directories correspond based on their lexicographic order.
+describealign can be given a directory of videos and a directory of audio files rather than individual files. describealign assumes files from the two directories correspond based on their lexicographic order.
 
 ### boost
 
@@ -82,4 +86,20 @@ The default behavior of describealign is to replace all or almost all of a video
 ### additional arguments
 
 If an alignment isn't working perfectly, the ambitious user can try adjusting a few parameters with arguments described in "--help".
+
+
+## Planned Features
+
+### Video-to-Audio Alignment
+
+Currently, describealign stretches audio descriptions to fit video, but the inverse should also be possible: stretching video to fit audio description. A future version will include this feature.
+
+### GUI
+
+Many describealign users are describers or family members of the visually impaired, so an optional, cross-platform Graphical User Interface could improve usability.
+
+
+
+
+
 
