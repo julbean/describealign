@@ -8,6 +8,8 @@ Create a copy of a video file with the sound replaced by an audio description:
 describealign video.mp4 audio_desc.mp3
 ```
 
+Note: media longer than an hour should only be processed on computers with at least 16 GB of RAM.
+
 ## Installation
 
 ### package method
