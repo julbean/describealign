@@ -91,7 +91,7 @@ If an alignment isn't working perfectly, the ambitious user can try adjusting a 
 
 describealign can also be used as a python module:
 
-```bash
+```python
 import describealign as dal
 dal.combine("ask_dad_trimmed.mp4", "ask_dad_moviesfortheblind_ep_01_trimmed.mp3")
 ```
