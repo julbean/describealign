@@ -87,6 +87,14 @@ The default behavior of describealign is to replace all or almost all of a video
 
 If an alignment isn't working perfectly, the ambitious user can try adjusting a few parameters with arguments described in "--help".
 
+### module
+
+describealign can also be used as a python module:
+
+```bash
+import describealign as dal
+dal.combine("ask_dad_trimmed.mp4", "ask_dad_moviesfortheblind_ep_01_trimmed.mp3")
+```
 
 ## Planned Features
 
