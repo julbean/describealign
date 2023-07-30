@@ -38,9 +38,9 @@ pip install -r requirements.txt
 python3 describealign.py video.mp4 audio_desc.mp3
 ```
 
-### binary method
+### Windows binary
 
-This method doesn't require installing python or messing about with PATH.
+The binary methods don't require installing python or messing about with PATH.
 
 Windows users can instead download and unzip the [latest release](https://github.com/julbean/describealign/releases/latest), then run:
 ```bash
@@ -48,6 +48,15 @@ describealign.exe video.mp4 audio_desc.mp3
 ```
 
 Note that double-clicking "describealign.exe" won't do anything; the above command must be run in command prompt and in the same directory or it won't be able to find "ffmpeg" in the resources folder.
+
+### MacOS binary
+
+Mac users can do the same with the [latest release](https://github.com/julbean/describealign/releases/latest), then run:
+```bash
+./describealign video.mp4 audio_desc.mp3
+```
+
+Note the above command must be run in Terminal and in the same directory or it won't be able to find "ffmpeg" in the resources folder.
 
 ### updating
 
@@ -66,7 +75,7 @@ The installation can be tested on a clip from the 1929 comedy short [Ask Dad](ht
 describealign ask_dad_trimmed.mp4 ask_dad_moviesfortheblind_ep_01_trimmed.mp3
 ```
 
-Note that users of the binary release will need to add ".exe" onto describealign in the above command.
+Note that users of the Windows binary release will need to add ".exe" onto the end of describealign in the above command, while MacOS binary users will instead need to add "./" onto the beginning.
 
 This produces two outputs, a new video file "videos_with_ad/ad_ask_dad_trimmed.mp4" and a plot in alignment_plots:
 
