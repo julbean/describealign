@@ -29,6 +29,7 @@ AUDIO_EXTENSIONS = set(['mp3', 'm4a', 'opus', 'wav', 'aac', 'flac', 'ac3', 'mka'
 OUTPUT_FILE_PREPEND_TEXT = "ad_"
 OUTPUT_DIR = "videos_with_ad"
 PLOT_DIR = "alignment_plots"
+EXTERNAL_FILES_FOLDER = "resources"
 PLOT_ALIGNMENT_TO_FILE = True
 
 TIMESTEP_SIZE_SECONDS = .16
@@ -72,7 +73,7 @@ def ensure_folders_exist(dirs):
       print("Directory not found, creating it:", dir)
       os.makedirs(dir)
 
-def get_sorted_filenames(path, extensions):
+def get_sorted_filenames(path, extensions, alt_extensions=set([])):
   path = os.path.abspath(path)
   if os.path.isdir(path):
     files = glob.glob(path + "/*")
@@ -81,21 +82,23 @@ def get_sorted_filenames(path, extensions):
       print("No file found at:", path)
       raise RuntimeError("No valid file found at input path.")
     files = [path]
-  files = [file for file in files if os.path.splitext(file)[1][1:] in extensions]
+  files = [file for file in files if os.path.splitext(file)[1][1:] in extensions | alt_extensions]
   if len(files) == 0:
     print("Not enough files with valid extensions present at:", path)
     print("Did you accidentally put the audio filepath before the video filepath?")
     print("The video path should be the first positional input, audio second.")
     print("Or maybe you need to add a new extension to this script's regex?")
     raise RuntimeError("No valid files found at input path.")
-  return sorted(files)
+  files = sorted(files)
+  file_types = [0 if os.path.splitext(file)[1][1:] in extensions else 1 for file in files]
+  return files, file_types
 
 # read audio from file with ffmpeg and convert to numpy array
 def parse_audio_from_file(media_file):
   media_stream, _ = (ffmpeg
     .input(media_file)
     .output('-', format='s16le', acodec='pcm_s16le', ac=2, ar=AUDIO_SAMPLE_RATE, loglevel='fatal')
-    .run(capture_stdout=True, cmd=imageio_ffmpeg.get_ffmpeg_exe())
+    .run(capture_stdout=True, cmd=get_ffmpeg())
   )
   media_arr = np.frombuffer(media_stream, np.int16).astype(np.float32).reshape((-1,2)).T
   return media_arr
@@ -257,7 +260,7 @@ def rough_align(video_spec, audio_desc_spec, video_timings, audio_desc_timings):
   
   # filter out low match quality nodes from LCS path
   quals = [get_match_quality(node) for node in path]
-  if max(quals) <= 0:
+  if len(quals) == 0 or max(quals) <= 0:
     raise RuntimeError("Rough alignment failed, are the input files mismatched?")
   path, quals = zip(*[(path, qual) for (path, qual) in zip(path, quals) if qual > 0])
   
@@ -402,9 +405,14 @@ def plot_alignment(plot_filename, path, smooth_path, quals, runs, bad_clips, ad_
   lcs_rgba[:,3] = np.minimum(1, np.array(quals) * 500. / len(quals))
   audio_times, video_times = np.array(path).T.reshape((2,-1))
   audio_offsets = audio_times - video_times
-  plt.xlim((0, np.max(video_times) / 60.))
-  plt.ylim((np.min(audio_offsets) - TIMESTEP_SIZE_SECONDS / 2.,
-            np.max(audio_offsets) + TIMESTEP_SIZE_SECONDS / 2.))
+  def expand_limits(start, end, ratio=.01):
+    average = (end + start) / 2.
+    half_diff = (end - start) / 2.
+    half_diff *= (1 + ratio)
+    return (average - half_diff, average + half_diff)
+  plt.xlim(expand_limits(*(0, np.max(video_times) / 60.)))
+  plt.ylim(expand_limits(*(np.min(audio_offsets) - TIMESTEP_SIZE_SECONDS / 2.,
+                          np.max(audio_offsets) + TIMESTEP_SIZE_SECONDS / 2.)))
   plt.scatter(video_times / 60., audio_offsets, s=3, c=lcs_rgba, label='LCS Matches')
   audio_times, video_times = np.array(smooth_path).T.reshape((2,-1))
   audio_offsets = audio_times - video_times
@@ -625,28 +633,45 @@ def detect_describer(video_arr, video_spec, video_spec_raw, video_timings,
   
   return speech_sample_mask, boost_sample_mask, ad_timings
 
-# outputs a new video file with the replaced audio (which includes audio descriptions)
-def write_replaced_media_to_disk(output_filename, video_file, video_arr):
-  video_arr_pipe = ffmpeg.input('pipe:', format='s16le', acodec='pcm_s16le',
+# check whether ffmpeg is available locally before checking for an installed version
+def get_ffmpeg():
+  if os.path.isdir(EXTERNAL_FILES_FOLDER):
+    files = glob.glob(EXTERNAL_FILES_FOLDER + "/ffmpeg*")
+    if len(files) > 0:
+      return files[0]
+  return imageio_ffmpeg.get_ffmpeg_exe()
+
+# outputs a new media file with the replaced audio (which includes audio descriptions)
+def write_replaced_media_to_disk(output_filename, media_arr, video_file=None):
+  media_arr_pipe = ffmpeg.input('pipe:', format='s16le', acodec='pcm_s16le',
                                 ac=2, ar=AUDIO_SAMPLE_RATE)
   original_video = ffmpeg.input(video_file, an=None)
-  # "-max_interleave_delta 0" is sometimes necessary to fix an .mkv bug that freezes audio/video:
-  #   ffmpeg bug warning: [matroska @ 0000000002c814c0] Starting new cluster due to timestamp
-  # more info about the bug and fix: https://reddit.com/r/ffmpeg/comments/efddfs/
-  write_command = ffmpeg.output(video_arr_pipe, original_video, output_filename,
-                                acodec='aac', vcodec='copy', scodec='copy',
-                                max_interleave_delta='0', loglevel='fatal')
-  ffmpeg_caller = write_command.run_async(pipe_stdin=True, cmd=imageio_ffmpeg.get_ffmpeg_exe())
-  ffmpeg_caller.stdin.write(video_arr.astype(np.int16).T.tobytes())
+  if video_file is None:
+    write_command = ffmpeg.output(media_arr_pipe, output_filename, loglevel='fatal')
+  else:
+    # "-max_interleave_delta 0" is sometimes necessary to fix an .mkv bug that freezes audio/video:
+    #   ffmpeg bug warning: [matroska @ 0000000002c814c0] Starting new cluster due to timestamp
+    # more info about the bug and fix: https://reddit.com/r/ffmpeg/comments/efddfs/
+    write_command = ffmpeg.output(media_arr_pipe, original_video, output_filename,
+                                  acodec='aac', vcodec='copy', scodec='copy',
+                                  max_interleave_delta='0', loglevel='fatal')
+  ffmpeg_caller = write_command.run_async(pipe_stdin=True, cmd=get_ffmpeg())
+  ffmpeg_caller.stdin.write(media_arr.astype(np.int16).T.tobytes())
   ffmpeg_caller.stdin.close()
   ffmpeg_caller.wait()
 
 # combines videos with matching audio files (e.g. audio descriptions)
 # this is the main function of this script, it calls the other functions in order
 def combine(video, audio, smoothness=50, keep_non_ad=False, boost=0,
-            ad_detect_sensitivity=.6, boost_sensitivity=.4):
-  video_files = get_sorted_filenames(video, VIDEO_EXTENSIONS)
-  audio_desc_files = get_sorted_filenames(audio, AUDIO_EXTENSIONS)
+            ad_detect_sensitivity=.6, boost_sensitivity=.4, yes=False):
+  video_files, video_file_types = get_sorted_filenames(video, VIDEO_EXTENSIONS, AUDIO_EXTENSIONS)
+  if yes == False and sum(video_file_types) > 0:
+    print("")
+    print("One or more audio files found in video input. Was this intentional?")
+    print("If not, press ctrl+c to kill this script.")
+    input("If this was intended, press Enter to continue...")
+    print("")
+  audio_desc_files, _ = get_sorted_filenames(audio, AUDIO_EXTENSIONS)
   if len(video_files) != len(audio_desc_files):
     raise RuntimeError("Number of valid files in input directories are not the same.")
   
@@ -659,13 +684,15 @@ def combine(video, audio, smoothness=50, keep_non_ad=False, boost=0,
     print(os.path.split(video_file)[1])
     print(os.path.split(audio_desc_file)[1])
     print("")
-  print("Are the above input file pairings correct?")
-  print("If not, press ctrl+c to kill this script.")
-  input("If they are correct, press Enter to continue...")
-  print("")
+  if yes == False:
+    print("Are the above input file pairings correct?")
+    print("If not, press ctrl+c to kill this script.")
+    input("If they are correct, press Enter to continue...")
+    print("")
   print("Processing files:")
   
-  for (video_file, audio_desc_file) in zip(video_files, audio_desc_files):
+  for (video_file, audio_desc_file, video_filetype) in zip(video_files, audio_desc_files,
+                                                           video_file_types):
     output_filename = os.path.join(OUTPUT_DIR, OUTPUT_FILE_PREPEND_TEXT + \
                                                os.path.split(video_file)[1])
     print(" ", output_filename)
@@ -716,8 +743,10 @@ def combine(video, audio, smoothness=50, keep_non_ad=False, boost=0,
     if PLOT_ALIGNMENT_TO_FILE:
       plot_filename = os.path.join(PLOT_DIR, os.path.splitext(os.path.split(video_file)[1])[0] + '.png')
       plot_alignment(plot_filename, path, smooth_path, quals, runs, bad_clips, ad_timings)
-    
-    write_replaced_media_to_disk(output_filename, video_file, video_arr)
+    if video_filetype == 0:
+      write_replaced_media_to_disk(output_filename, video_arr, video_file)
+    else:
+      write_replaced_media_to_disk(output_filename, video_arr)
     del video_arr
 
 # Entry point for command line interaction, for example:
@@ -743,10 +772,12 @@ def command_line_interface():
   parser.add_argument('--boost_sensitivity', type=float, default=.4,
                       help='Higher values make --boost less likely to miss a description, but ' + \
                            'also make it more likely to boost non-description audio. Default is 0.4')
+  parser.add_argument('--yes', action='store_true',
+                      help='Auto-skips user prompts asking to verify information.')
   args = parser.parse_args()
   
   combine(args.video, args.audio, args.smoothness, args.keep_non_ad, args.boost,
-          args.ad_detect_sensitivity, args.boost_sensitivity)
+          args.ad_detect_sensitivity, args.boost_sensitivity, args.yes)
 
 # allows the script to be run on its own, rather than through the package, for example:
 # python3 describealign.py video.mp4 audio_desc.mp3
