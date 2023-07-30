@@ -5,7 +5,7 @@ Combines videos with matching audio files (e.g. audio descriptions). Works by al
 ## Quickstart
 
 Create a copy of a video file with the sound replaced by an audio description:
-```
+```bash
 describealign video.mp4 audio_desc.mp3
 ```
 
@@ -38,6 +38,17 @@ pip install -r requirements.txt
 python3 describealign.py video.mp4 audio_desc.mp3
 ```
 
+### binary method
+
+This method doesn't require installing python or messing about with PATH.
+
+Windows users can instead download and unzip the [latest release](https://github.com/julbean/describealign/releases/latest), then run:
+```bash
+describealign.exe video.mp4 audio_desc.mp3
+```
+
+Note that double-clicking "describealign.exe" won't do anything; the above command must be run in command prompt and in the same directory or it won't be able to find "ffmpeg" in the resources folder.
+
 ### updating
 
 When new versions are released, the pip package can be updated with:
@@ -51,10 +62,11 @@ Note: users with multiple python versions may need to use pip3 rather than pip.
 ## Testing Installation
 
 The installation can be tested on a clip from the 1929 comedy short [Ask Dad](https://archive.org/details/ask_dad), with the first part of an [audio description](https://archive.org/details/MoviesForTheBlind01-askDad) provided by Valerie H. in her podcast [Movies For the Blind.](https://moviesfortheblind.com/) Download the trimmed versions from the test_media folder in this repository, change to the directory with the files and run:
-
 ```bash
 describealign ask_dad_trimmed.mp4 ask_dad_moviesfortheblind_ep_01_trimmed.mp3
 ```
+
+Note that users of the binary release will need to add ".exe" onto describealign in the above command.
 
 This produces two outputs, a new video file "videos_with_ad/ad_ask_dad_trimmed.mp4" and a plot in alignment_plots:
 
@@ -90,7 +102,6 @@ If an alignment isn't working perfectly, the ambitious user can try adjusting a 
 ### module
 
 describealign can also be used as a python module:
-
 ```python
 import describealign as dal
 dal.combine("ask_dad_trimmed.mp4", "ask_dad_moviesfortheblind_ep_01_trimmed.mp3")
