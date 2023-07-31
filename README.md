@@ -49,6 +49,8 @@ describealign.exe video.mp4 audio_desc.mp3
 
 Note that double-clicking "describealign.exe" won't do anything; the above command must be run in command prompt and in the same directory or it won't be able to find "ffmpeg" in the resources folder.
 
+A command prompt window in the correct directory can be opened by typing "cmd" into the filepath bar at the top of file explorer and then hitting enter.
+
 ### MacOS binary
 
 Mac users can do the same with the [latest release](https://github.com/julbean/describealign/releases/latest), then run:
