@@ -54,6 +54,7 @@ MAX_GAP_IN_DESC_SEC = 1.5
 if PLOT_ALIGNMENT_TO_FILE:
   import matplotlib.pyplot as plt
 import argparse
+import sys
 import os
 import glob
 import itertools
@@ -76,19 +77,21 @@ def ensure_folders_exist(dirs):
 def get_sorted_filenames(path, extensions, alt_extensions=set([])):
   path = os.path.abspath(path)
   if os.path.isdir(path):
-    files = glob.glob(path + "/*")
+    files = glob.glob(glob.escape(path) + "/*")
+    if len(files) == 0:
+      raise RuntimeError(f"Empty input directory:\n  {path}")
   else:
     if not os.path.isfile(path):
-      print("No file found at:", path)
-      raise RuntimeError("No valid file found at input path.")
+      raise RuntimeError(f"No file or directory found at input path:\n  {path}")
     files = [path]
   files = [file for file in files if os.path.splitext(file)[1][1:] in extensions | alt_extensions]
   if len(files) == 0:
-    print("Not enough files with valid extensions present at:", path)
-    print("Did you accidentally put the audio filepath before the video filepath?")
-    print("The video path should be the first positional input, audio second.")
-    print("Or maybe you need to add a new extension to this script's regex?")
-    raise RuntimeError("No valid files found at input path.")
+    error_msg = [f"No files with valid extensions found at input path:\n  {path}",
+                 "Did you accidentally put the audio filepath before the video filepath?",
+                 "The video path should be the first positional input, audio second.",
+                 "Or maybe you need to add a new extension to this script's regex?",
+                 f"valid extensions for this input are:\n  {extensions}"]
+    raise RuntimeError("\n".join(error_msg))
   files = sorted(files)
   file_types = [0 if os.path.splitext(file)[1][1:] in extensions else 1 for file in files]
   return files, file_types
@@ -636,7 +639,7 @@ def detect_describer(video_arr, video_spec, video_spec_raw, video_timings,
 # check whether ffmpeg is available locally before checking for an installed version
 def get_ffmpeg():
   if os.path.isdir(EXTERNAL_FILES_FOLDER):
-    files = glob.glob(EXTERNAL_FILES_FOLDER + "/ffmpeg*")
+    files = glob.glob(glob.escape(EXTERNAL_FILES_FOLDER) + "/ffmpeg*")
     if len(files) > 0:
       return files[0]
   return imageio_ffmpeg.get_ffmpeg_exe()
@@ -673,7 +676,10 @@ def combine(video, audio, smoothness=50, keep_non_ad=False, boost=0,
     print("")
   audio_desc_files, _ = get_sorted_filenames(audio, AUDIO_EXTENSIONS)
   if len(video_files) != len(audio_desc_files):
-    raise RuntimeError("Number of valid files in input directories are not the same.")
+    error_msg = ["Number of valid files in input paths are not the same.",
+                 f"The video path has {len(video_files)} files",
+                 f"The audio path has {len(audio_desc_files)} files"]
+    raise RuntimeError("\n".join(error_msg))
   
   ensure_folders_exist([OUTPUT_DIR])
   if PLOT_ALIGNMENT_TO_FILE:
@@ -752,8 +758,18 @@ def combine(video, audio, smoothness=50, keep_non_ad=False, boost=0,
 # Entry point for command line interaction, for example:
 # > describealign video.mp4 audio_desc.mp3
 def command_line_interface():
-  parser = argparse.ArgumentParser(description="Replaces a video's sound with an audio description.",
-                                   usage="python ADsync.py video_file.mp4 audio_file.mp3")
+  # override command line argument parser's error handler to make it pause before exiting
+  # this allows users to see the error message when accidentally not running from command line
+  class ArgumentParser(argparse.ArgumentParser):
+    def error(self, message):
+      self.print_usage(sys.stderr)
+      if 'required: video, audio' in message:
+        print('No input arguments detected, did you accidentally run the binary directly?')
+        print('describealign must be run from command line (e.g. command prompt, terminal)')
+        input("Press Enter to exit...")
+      self.exit(2, f'{self.prog}: error: {message}\n')
+  parser = ArgumentParser(description="Replaces a video's sound with an audio description.",
+                          usage="describealign video_file.mp4 audio_file.mp3")
   parser.add_argument("video", help="A video file or directory containing video files.")
   parser.add_argument("audio", help="An audio file or directory containing audio files.")
   parser.add_argument('--smoothness', type=float, default=50,
