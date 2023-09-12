@@ -50,11 +50,11 @@ MAX_START_END_SYNC_ERR_SECONDS = .2
 MAX_RATE_RATIO_DIFF_BOOST = .003
 MIN_DESC_DURATION = .5
 MAX_GAP_IN_DESC_SEC = 1.5
+JUST_NOTICEABLE_DIFF_IN_FREQ_RATIO = .005
 
 if PLOT_ALIGNMENT_TO_FILE:
   import matplotlib.pyplot as plt
 import argparse
-import sys
 import os
 import glob
 import itertools
@@ -67,6 +67,7 @@ import scipy.optimize
 import scipy.interpolate
 import scipy.ndimage as nd
 import scipy.sparse
+import pytsmod
 
 def ensure_folders_exist(dirs):
   for dir in dirs:
@@ -498,7 +499,20 @@ def replace_aligned_segments(video_arr, audio_desc_arr, smooth_path, runs):
                     int(y[run[-1][1]] * AUDIO_SAMPLE_RATE))
     if np.diff(video_bounds)[0] < MIN_DURATION_TO_REPLACE_SECONDS * AUDIO_SAMPLE_RATE:
       continue
-    video_arr[:,slice(*video_bounds)] = get_interped_segment(run, audio_desc_arr_interp)
+    anchor_point_path_indices = [clip[0] for clip in run]
+    anchor_point_path_indices.append(run[-1][1])
+    anchor_points = (np.array((np.array(x)[anchor_point_path_indices],
+                               np.array(y)[anchor_point_path_indices])) * AUDIO_SAMPLE_RATE).astype(int)
+    # only apply pitch correction if the difference would be noticeable
+    slopes = np.diff(anchor_points[1]) / np.diff(anchor_points[0])
+    if any(np.abs(1 - slopes) > JUST_NOTICEABLE_DIFF_IN_FREQ_RATIO):
+      # account for quirks of pytsmod's wsola anchor point implementation
+      anchor_points[1][-1] -= 1
+      anchor_y_offset = anchor_points[1][0]
+      anchor_points[1,:] -= anchor_y_offset
+      video_arr[:,slice(*video_bounds)] = pytsmod.wsola(audio_desc_arr, anchor_points)
+    else:
+      video_arr[:,slice(*video_bounds)] = get_interped_segment(run, audio_desc_arr_interp)
 
 # identify which segments of the replaced audio actually have the describer speaking
 # uses a Naive Bayes classifier smoothed with L1-Minimization to identify the describer
@@ -762,7 +776,6 @@ def command_line_interface():
   # this allows users to see the error message when accidentally not running from command line
   class ArgumentParser(argparse.ArgumentParser):
     def error(self, message):
-      self.print_usage(sys.stderr)
       if 'required: video, audio' in message:
         print('No input arguments detected, did you accidentally run the binary directly?')
         print('describealign must be run from command line (e.g. command prompt, terminal)')
