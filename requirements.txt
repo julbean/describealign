@@ -4,3 +4,4 @@ matplotlib>=3.5.0
 numpy>=1.21.4
 python_speech_features>=0.6
 scipy>=1.10.1
+pytsmod>=0.3.3
