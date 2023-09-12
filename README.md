@@ -53,7 +53,7 @@ A command prompt window in the correct directory can be opened by typing "cmd" i
 
 ### MacOS binary
 
-Mac users can do the same with the [latest release](https://github.com/julbean/describealign/releases/latest), then run:
+Mac users can do the same with the older [version 0.1.4](https://github.com/julbean/describealign/releases/tag/v0.1.4), then run:
 ```bash
 ./describealign video.mp4 audio_desc.mp3
 ```
