@@ -98,6 +98,10 @@ This plot shows a number of small pauses in the audio description starting aroun
 
 describealign can be given a directory of videos and a directory of audio files rather than individual files. describealign assumes files from the two directories correspond based on their lexicographic order.
 
+### stretch_video (video-to-audio alignment)
+
+By default describealign stretches audio descriptions to fit video, but the inverse is also possible: stretching the video to fit the audio description with the "--stretch_video" argument.
+
 ### audio-to-audio
 
 Whereas describealign is designed to align audio-to-video, it can also align an audio file to another audio file.
@@ -123,10 +127,6 @@ dal.combine("ask_dad_trimmed.mp4", "ask_dad_moviesfortheblind_ep_01_trimmed.mp3"
 ```
 
 ## Planned Features
-
-### Video-to-Audio Alignment
-
-Currently, describealign stretches audio descriptions to fit video, but the inverse should also be possible: stretching video to fit audio description. A future version will include this feature.
 
 ### GUI
 
