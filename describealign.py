@@ -51,6 +51,7 @@ MAX_RATE_RATIO_DIFF_BOOST = .003
 MIN_DESC_DURATION = .5
 MAX_GAP_IN_DESC_SEC = 1.5
 JUST_NOTICEABLE_DIFF_IN_FREQ_RATIO = .005
+CATCHUP_RATE = 5
 
 if PLOT_ALIGNMENT_TO_FILE:
   import matplotlib.pyplot as plt
@@ -60,7 +61,7 @@ import glob
 import itertools
 import numpy as np
 import ffmpeg
-import imageio_ffmpeg
+import static_ffmpeg
 import python_speech_features as psf
 import scipy.signal
 import scipy.optimize
@@ -383,7 +384,7 @@ def smooth_align(path, quals, smoothness):
   slope_changes = np.diff(slopes)
   breaks = np.where(np.abs(slope_changes) > 1e-7)[0] + 1
   breaks = [0] + list(breaks) + [len(x)-1]
-  clips = zip(breaks[:-1], breaks[1:])
+  clips = list(zip(breaks[:-1], breaks[1:]))
   
   # assemble clips with slopes within the rate tolerance into runs
   runs, run = [], []
@@ -399,7 +400,25 @@ def smooth_align(path, quals, smoothness):
   if len(run) > 0:
     runs.append(run)
   
-  return smooth_path, runs, bad_clips
+  return smooth_path, runs, bad_clips, clips
+
+# if the start or end were marked as synced during smooth alignment then
+# extend that alignment to the edge (i.e. to the start/end of the audio)
+def cap_synced_end_points(smooth_path, video_arr, audio_desc_arr):
+  if smooth_path[0][0] < -10e9:
+    slope = smooth_path[0][1] / smooth_path[0][0]
+    new_start_point = (0, smooth_path[1][1] - smooth_path[1][0] * slope)
+    if new_start_point[1] < 0:
+      new_start_point = (smooth_path[1][0] - smooth_path[1][1] / slope, 0)
+    smooth_path[0] = new_start_point
+  if smooth_path[-1][0] > 10e9:
+    video_runtime = (video_arr.shape[1] - 2.) / AUDIO_SAMPLE_RATE
+    audio_runtime = (audio_desc_arr.shape[1] - 2.) / AUDIO_SAMPLE_RATE
+    slope = smooth_path[-1][1] / smooth_path[-1][0]
+    new_end_point = (audio_runtime, smooth_path[-2][1] + (audio_runtime - smooth_path[-2][0]) * slope)
+    if new_end_point[1] > video_runtime:
+      new_end_point = (smooth_path[-2][0] + (video_runtime - smooth_path[-2][1]) / slope, video_runtime)
+    smooth_path[-1] = new_end_point
 
 # visualize both the rough and smooth alignments
 def plot_alignment(plot_filename, path, smooth_path, quals, runs, bad_clips, ad_timings):
@@ -475,23 +494,6 @@ def replace_aligned_segments(video_arr, audio_desc_arr, smooth_path, runs):
       segment.append(interp(sample_points))
     segment = np.hstack(segment)
     return segment
-  
-  # if the start or end were marked as synced during smooth alignment then
-  # extend that alignment to the edge (i.e. to the start/end of the audio)
-  if smooth_path[0][0] < -10e9:
-    slope = smooth_path[0][1] / smooth_path[0][0]
-    new_start_point = (0, smooth_path[1][1] - smooth_path[1][0] * slope)
-    if new_start_point[1] < 0:
-      new_start_point = (smooth_path[1][0] - smooth_path[1][1] / slope, 0)
-    smooth_path[0] = new_start_point
-  if smooth_path[-1][0] > 10e9:
-    video_runtime = (video_arr.shape[1] - 2.) / AUDIO_SAMPLE_RATE
-    audio_runtime = (audio_desc_arr.shape[1] - 2.) / AUDIO_SAMPLE_RATE
-    slope = smooth_path[-1][1] / smooth_path[-1][0]
-    new_end_point = (audio_runtime, smooth_path[-2][1] + (audio_runtime - smooth_path[-2][0]) * slope)
-    if new_end_point[1] > video_runtime:
-      new_end_point = (smooth_path[-2][0] + (video_runtime - smooth_path[-2][1]) / slope, video_runtime)
-    smooth_path[-1] = new_end_point
   
   x,y = zip(*smooth_path)
   for run in runs:
@@ -650,36 +652,86 @@ def detect_describer(video_arr, video_spec, video_spec_raw, video_timings,
   
   return speech_sample_mask, boost_sample_mask, ad_timings
 
-# check whether ffmpeg is available locally before checking for an installed version
+# Convert piece-wise linear fit to ffmpeg expression for editing video frame timestamps
+def encode_fit_as_ffmpeg_expr(smooth_path, clips, video_offset, start_key_frame):
+  # PTS is the input frame's presentation timestamp, which is when frames are displayed
+  # TB is the timebase, which is how many seconds each unit of PTS corresponds to
+  # the output value of the expression will be the frame's new PTS
+  setts_cmd = ['TS']
+  skip_seconds = max(0, video_offset - start_key_frame)
+  if skip_seconds > 0:
+    # lossless cutting can only happen at key frames, so we cut the video before the audio starts
+    # but that means the video is behind the audio and needs to catch up by playing quicker
+    # catchup_spread is the ratio of time to spend catching up to the amount of catching up needed
+    catchup_spread = 1./CATCHUP_RATE
+    setts_cmd.append(f'+clip(TS,0,{skip_seconds*(1+catchup_spread)}/TB)*{-1./(1+catchup_spread)}')
+  elif video_offset < 0:
+    # if the audio starts before the video, stretch the first frame of the video back to meet it
+    setts_cmd.append(f'+clip(TS,0,{-video_offset/10000.}/TB)*10000')
+  # each segment of the linear fit can be encoded as a single clip function
+  setts_cmd.append('+(0')
+  for clip_start, clip_end in clips:
+    audio_desc_start, video_start = smooth_path[clip_start]
+    audio_desc_end, video_end = smooth_path[clip_end]
+    video_start -= start_key_frame
+    video_end -= start_key_frame
+    audio_desc_length = audio_desc_end - audio_desc_start
+    video_length = video_end - video_start
+    slope = audio_desc_length / video_length
+    setts_cmd.append(f'+clip(TS-{video_start:.4f}/TB,0,{max(0,video_length):.4f}/TB)*{slope-1:.9f}')
+  setts_cmd.append(')')
+  setts_cmd = ''.join(setts_cmd)
+  return setts_cmd
+
 def get_ffmpeg():
-  if os.path.isdir(EXTERNAL_FILES_FOLDER):
-    files = glob.glob(glob.escape(EXTERNAL_FILES_FOLDER) + "/ffmpeg*")
-    if len(files) > 0:
-      return files[0]
-  return imageio_ffmpeg.get_ffmpeg_exe()
+  return static_ffmpeg.run.get_or_fetch_platform_executables_else_raise()[0]
+
+def get_ffprobe():
+  return static_ffmpeg.run.get_or_fetch_platform_executables_else_raise()[1]
+
+def get_closest_key_frame_time(video_file, time):
+  if time <= 0:
+    return 0
+  key_frames = ffmpeg.probe(video_file, cmd=get_ffprobe(), select_streams='v',
+                            show_frames=None, skip_frame='nokey')['frames']
+  key_frame_times = np.array([float(frame['pts_time']) for frame in key_frames] + [0])
+  return np.max(key_frame_times[key_frame_times <= time])
 
 # outputs a new media file with the replaced audio (which includes audio descriptions)
-def write_replaced_media_to_disk(output_filename, media_arr, video_file=None):
-  media_arr_pipe = ffmpeg.input('pipe:', format='s16le', acodec='pcm_s16le',
-                                ac=2, ar=AUDIO_SAMPLE_RATE)
-  original_video = ffmpeg.input(video_file, an=None)
-  if video_file is None:
-    write_command = ffmpeg.output(media_arr_pipe, output_filename, loglevel='fatal')
+def write_replaced_media_to_disk(output_filename, media_arr, video_file=None, audio_desc_file=None,
+                                 setts_cmd=None, start_key_frame=None):
+  if audio_desc_file is None:
+    original_video = ffmpeg.input(video_file, an=None)
+    media_input = ffmpeg.input('pipe:', format='s16le', acodec='pcm_s16le',
+                               ac=2, ar=AUDIO_SAMPLE_RATE)
+    if video_file is None:
+      write_command = ffmpeg.output(media_input, output_filename, loglevel='fatal')
+    else:
+      # "-max_interleave_delta 0" is sometimes necessary to fix an .mkv bug that freezes audio/video:
+      #   ffmpeg bug warning: [matroska @ 0000000002c814c0] Starting new cluster due to timestamp
+      # more info about the bug and fix: https://reddit.com/r/ffmpeg/comments/efddfs/
+      write_command = ffmpeg.output(media_input, original_video, output_filename,
+                                    acodec='aac', vcodec='copy', scodec='copy',
+                                    max_interleave_delta='0', loglevel='fatal')
+    ffmpeg_caller = write_command.run_async(pipe_stdin=True, cmd=get_ffmpeg())
+    ffmpeg_caller.stdin.write(media_arr.astype(np.int16).T.tobytes())
+    ffmpeg_caller.stdin.close()
+    ffmpeg_caller.wait()
   else:
-    # "-max_interleave_delta 0" is sometimes necessary to fix an .mkv bug that freezes audio/video:
-    #   ffmpeg bug warning: [matroska @ 0000000002c814c0] Starting new cluster due to timestamp
-    # more info about the bug and fix: https://reddit.com/r/ffmpeg/comments/efddfs/
-    write_command = ffmpeg.output(media_arr_pipe, original_video, output_filename,
-                                  acodec='aac', vcodec='copy', scodec='copy',
-                                  max_interleave_delta='0', loglevel='fatal')
-  ffmpeg_caller = write_command.run_async(pipe_stdin=True, cmd=get_ffmpeg())
-  ffmpeg_caller.stdin.write(media_arr.astype(np.int16).T.tobytes())
-  ffmpeg_caller.stdin.close()
-  ffmpeg_caller.wait()
+    media_input = ffmpeg.input(audio_desc_file)
+    audio_desc_streams = ffmpeg.probe(audio_desc_file, cmd=get_ffprobe(), select_streams='a',
+                                      show_entries='format=duration')['streams']
+    audio_desc_duration = max([float(stream['duration']) for stream in audio_desc_streams])
+    original_video = ffmpeg.input(video_file, an=None, ss=start_key_frame)
+    write_command = ffmpeg.output(media_input, original_video, output_filename,
+                                  acodec='copy', vcodec='copy', scodec='copy',
+                                  max_interleave_delta='0', loglevel='fatal',
+                                  **{'bsf:v': 'setts=ts=\'' + setts_cmd + '\''})
+    write_command.run(cmd=get_ffmpeg())
 
 # combines videos with matching audio files (e.g. audio descriptions)
 # this is the main function of this script, it calls the other functions in order
-def combine(video, audio, smoothness=50, keep_non_ad=False, boost=0,
+def combine(video, audio, smoothness=50, stretch_video=False, keep_non_ad=False, boost=0,
             ad_detect_sensitivity=.6, boost_sensitivity=.4, yes=False):
   video_files, video_file_types = get_sorted_filenames(video, VIDEO_EXTENSIONS, AUDIO_EXTENSIONS)
   if yes == False and sum(video_file_types) > 0:
@@ -733,41 +785,53 @@ def combine(video, audio, smoothness=50, keep_non_ad=False, boost=0,
     
     path, quals = rough_align(video_spec, audio_desc_spec, video_timings, audio_desc_timings)
     
-    smooth_path, runs, bad_clips = smooth_align(path, quals, smoothness)
+    smooth_path, runs, bad_clips, clips = smooth_align(path, quals, smoothness)
     
-    if keep_non_ad:
-      video_arr_original = video_arr.copy()
-    
-    replace_aligned_segments(video_arr, audio_desc_arr, smooth_path, runs)
-    del audio_desc_arr
+    cap_synced_end_points(smooth_path, video_arr, audio_desc_arr)
     
     ad_timings = None
-    if keep_non_ad or boost != 0:
-      outputs = detect_describer(video_arr, video_spec, video_spec_raw, video_timings,
-                                 smooth_path, ad_detect_sensitivity, boost_sensitivity)
-      speech_sample_mask, boost_sample_mask, ad_timings = outputs
-    if keep_non_ad:
-      video_arr *= speech_sample_mask
-      video_arr += video_arr_original * (1 - speech_sample_mask)
-      del video_arr_original
-      del speech_sample_mask
+    if stretch_video:
+      if video_filetype == 1:
+        raise RuntimeError("Argument --stretch_video cannot be used when both inputs are audio files.")
+      video_offset = np.diff(smooth_path[clips[0][0]])[0]
+      start_key_frame = get_closest_key_frame_time(video_file, video_offset)
+      setts_cmd = encode_fit_as_ffmpeg_expr(smooth_path, clips, video_offset, start_key_frame)
+      write_replaced_media_to_disk(output_filename, None, video_file, audio_desc_file,
+                                   setts_cmd, start_key_frame)
     else:
-      ad_timings = None
-    if boost != 0:
-      video_arr = video_arr * (1. + (10**(boost / 10.)) * boost_sample_mask)
-      del boost_sample_mask
+      if keep_non_ad:
+        video_arr_original = video_arr.copy()
+      
+      replace_aligned_segments(video_arr, audio_desc_arr, smooth_path, runs)
+      del audio_desc_arr
+      
+      if keep_non_ad or boost != 0:
+        outputs = detect_describer(video_arr, video_spec, video_spec_raw, video_timings,
+                                   smooth_path, ad_detect_sensitivity, boost_sensitivity)
+        speech_sample_mask, boost_sample_mask, ad_timings = outputs
+      if keep_non_ad:
+        video_arr *= speech_sample_mask
+        video_arr += video_arr_original * (1 - speech_sample_mask)
+        del video_arr_original
+        del speech_sample_mask
+      else:
+        ad_timings = None
+      if boost != 0:
+        video_arr = video_arr * (1. + (10**(boost / 10.)) * boost_sample_mask)
+        del boost_sample_mask
+      
+      # prevent peaking by rescaling to within +/- 16,382
+      video_arr *= (2**15 - 2.) / np.max(np.abs(video_arr))
     
-    # prevent peaking by rescaling to within +/- 16,382
-    video_arr *= (2**15 - 2.) / np.max(np.abs(video_arr))
+      if video_filetype == 0:
+        write_replaced_media_to_disk(output_filename, video_arr, video_file)
+      else:
+        write_replaced_media_to_disk(output_filename, video_arr)
     
+    del video_arr
     if PLOT_ALIGNMENT_TO_FILE:
       plot_filename = os.path.join(PLOT_DIR, os.path.splitext(os.path.split(video_file)[1])[0] + '.png')
       plot_alignment(plot_filename, path, smooth_path, quals, runs, bad_clips, ad_timings)
-    if video_filetype == 0:
-      write_replaced_media_to_disk(output_filename, video_arr, video_file)
-    else:
-      write_replaced_media_to_disk(output_filename, video_arr)
-    del video_arr
 
 # Entry point for command line interaction, for example:
 # > describealign video.mp4 audio_desc.mp3
@@ -789,6 +853,9 @@ def command_line_interface():
                       help='Lower values make the alignment more accurate when there are skips ' + \
                            '(e.g. describer pauses), but also make it more likely to misalign. ' + \
                            'Default is 50.')
+  parser.add_argument('--stretch_video', action='store_true',
+                      help='Stretches the input video to fit the audio description. ' + \
+                           'Default is to stretch the audio to fit the video.')
   parser.add_argument('--keep_non_ad', action='store_true',
                       help='Tries to only replace segments with audio description. Useful if ' + \
                            'video\'s audio quality is better. Default is to replace all aligned audio.')
@@ -805,7 +872,7 @@ def command_line_interface():
                       help='Auto-skips user prompts asking to verify information.')
   args = parser.parse_args()
   
-  combine(args.video, args.audio, args.smoothness, args.keep_non_ad, args.boost,
+  combine(args.video, args.audio, args.smoothness, args.stretch_video, args.keep_non_ad, args.boost,
           args.ad_detect_sensitivity, args.boost_sensitivity, args.yes)
 
 # allows the script to be run on its own, rather than through the package, for example:
