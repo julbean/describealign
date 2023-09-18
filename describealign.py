@@ -26,7 +26,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 VIDEO_EXTENSIONS = set(['mp4', 'mkv', 'avi', 'mov', 'webm', 'mkv', 'm4v', 'flv', 'vob'])
 AUDIO_EXTENSIONS = set(['mp3', 'm4a', 'opus', 'wav', 'aac', 'flac', 'ac3', 'mka'])
-OUTPUT_FILE_PREPEND_TEXT = "ad_"
 OUTPUT_DIR = "videos_with_ad"
 PLOT_DIR = "alignment_plots"
 EXTERNAL_FILES_FOLDER = "resources"
@@ -59,6 +58,7 @@ import argparse
 import os
 import glob
 import itertools
+import datetime
 import numpy as np
 import ffmpeg
 import static_ffmpeg
@@ -274,6 +274,18 @@ def rough_align(video_spec, audio_desc_spec, video_timings, audio_desc_timings):
   
   return path, quals
 
+# chunk path segments of similar slope into clips
+# a clip has the form: (start_index, end_index)
+def chunk_path(smooth_path, tol):
+  x,y = zip(*smooth_path)
+  slopes = np.diff(y) / np.diff(x)
+  median_slope = np.median(slopes)
+  slope_changes = np.diff(slopes)
+  breaks = np.where(np.abs(slope_changes) > tol)[0] + 1
+  breaks = [0] + list(breaks) + [len(x)-1]
+  clips = list(zip(breaks[:-1], breaks[1:]))
+  return clips, median_slope, slopes
+
 # find piece-wise linear alignment that minimizes the weighted combination of
 # total absolute error at each node and total absolute slope change of the fit
 # distance between nodes and the fit (i.e. errors) are weighted by node quality
@@ -376,15 +388,7 @@ def smooth_align(path, quals, smoothness):
     slope = (smooth_path[-1][1] - smooth_path[-2][1]) / (smooth_path[-1][0] - smooth_path[-2][0])
     smooth_path.append((10e10, 10e10 * slope))
   
-  # chunk segments of similar slope into clips
-  # a clip has the form: (start_index, end_index)
-  x,y = zip(*smooth_path)
-  slopes = np.diff(y) / np.diff(x)
-  median_slope = np.median(slopes)
-  slope_changes = np.diff(slopes)
-  breaks = np.where(np.abs(slope_changes) > 1e-7)[0] + 1
-  breaks = [0] + list(breaks) + [len(x)-1]
-  clips = list(zip(breaks[:-1], breaks[1:]))
+  clips, median_slope, slopes = chunk_path(smooth_path, tol=1e-7)
   
   # assemble clips with slopes within the rate tolerance into runs
   runs, run = [], []
@@ -463,8 +467,26 @@ def plot_alignment(plot_filename, path, smooth_path, quals, runs, bad_clips, ad_
   plt.title('Alignment')
   plt.legend().legendHandles[0].set_color(scatter_color)
   plt.tight_layout()
-  plt.savefig(plot_filename, dpi=400)
+  plt.savefig(plot_filename + '.png', dpi=400)
   plt.clf()
+  
+  with open(plot_filename + '.txt.', 'w') as file:
+    rough_clips, median_slope, _ = chunk_path(smooth_path, tol=2e-2)
+    video_offset = np.diff(smooth_path[rough_clips[0][0]])[0]
+    print("Main changes needed to video to align it to audio input:", file=file)
+    print(f"Start Offset: {-video_offset:.2f} seconds", file=file)
+    print(f"Median Rate Change: {(median_slope-1.)*100:.2f}%", file=file)
+    for clip_start, clip_end in rough_clips:
+      audio_desc_start, video_start = smooth_path[clip_start]
+      audio_desc_end, video_end = smooth_path[clip_end]
+      slope = (video_end - video_start) / (audio_desc_end - audio_desc_start)
+      def str_from_time(seconds):
+        minutes, seconds = divmod(seconds, 60)
+        hours, minutes = divmod(minutes, 60)
+        return f"{hours:2.0f}:{minutes:02.0f}:{seconds:05.2f}"
+      print(f"Rate change of {(slope-1.)*100:6.1f}% from {str_from_time(video_start)} to " + \
+            f"{str_from_time(video_end)} aligning with audio from " + \
+            f"{str_from_time(audio_desc_start)} to {str_from_time(audio_desc_end)}", file=file)
 
 # use the smooth alignment to replace runs of video sound with corresponding described audio
 def replace_aligned_segments(video_arr, audio_desc_arr, smooth_path, runs):
@@ -684,10 +706,10 @@ def encode_fit_as_ffmpeg_expr(smooth_path, clips, video_offset, start_key_frame)
   return setts_cmd
 
 def get_ffmpeg():
-  return static_ffmpeg.run.get_or_fetch_platform_executables_else_raise()[0]
+  return static_ffmpeg.run._get_or_fetch_platform_executables_else_raise_no_lock()[0]
 
 def get_ffprobe():
-  return static_ffmpeg.run.get_or_fetch_platform_executables_else_raise()[1]
+  return static_ffmpeg.run._get_or_fetch_platform_executables_else_raise_no_lock()[1]
 
 def get_closest_key_frame_time(video_file, time):
   if time <= 0:
@@ -732,7 +754,7 @@ def write_replaced_media_to_disk(output_filename, media_arr, video_file=None, au
 # combines videos with matching audio files (e.g. audio descriptions)
 # this is the main function of this script, it calls the other functions in order
 def combine(video, audio, smoothness=50, stretch_video=False, keep_non_ad=False, boost=0,
-            ad_detect_sensitivity=.6, boost_sensitivity=.4, yes=False):
+            ad_detect_sensitivity=.6, boost_sensitivity=.4, yes=False, prepend="ad_"):
   video_files, video_file_types = get_sorted_filenames(video, VIDEO_EXTENSIONS, AUDIO_EXTENSIONS)
   if yes == False and sum(video_file_types) > 0:
     print("")
@@ -765,8 +787,7 @@ def combine(video, audio, smoothness=50, stretch_video=False, keep_non_ad=False,
   
   for (video_file, audio_desc_file, video_filetype) in zip(video_files, audio_desc_files,
                                                            video_file_types):
-    output_filename = os.path.join(OUTPUT_DIR, OUTPUT_FILE_PREPEND_TEXT + \
-                                               os.path.split(video_file)[1])
+    output_filename = os.path.join(OUTPUT_DIR, prepend + os.path.split(video_file)[1])
     print(" ", output_filename)
     
     if os.path.exists(output_filename):
@@ -830,7 +851,7 @@ def combine(video, audio, smoothness=50, stretch_video=False, keep_non_ad=False,
     
     del video_arr
     if PLOT_ALIGNMENT_TO_FILE:
-      plot_filename = os.path.join(PLOT_DIR, os.path.splitext(os.path.split(video_file)[1])[0] + '.png')
+      plot_filename = os.path.join(PLOT_DIR, os.path.splitext(os.path.split(video_file)[1])[0])
       plot_alignment(plot_filename, path, smooth_path, quals, runs, bad_clips, ad_timings)
 
 # Entry point for command line interaction, for example:
@@ -847,8 +868,8 @@ def command_line_interface():
       self.exit(2, f'{self.prog}: error: {message}\n')
   parser = ArgumentParser(description="Replaces a video's sound with an audio description.",
                           usage="describealign video_file.mp4 audio_file.mp3")
-  parser.add_argument("video", help="A video file or directory containing video files.")
-  parser.add_argument("audio", help="An audio file or directory containing audio files.")
+  parser.add_argument("video", help='A video file or directory containing video files.')
+  parser.add_argument("audio", help='An audio file or directory containing audio files.')
   parser.add_argument('--smoothness', type=float, default=50,
                       help='Lower values make the alignment more accurate when there are skips ' + \
                            '(e.g. describer pauses), but also make it more likely to misalign. ' + \
@@ -870,10 +891,11 @@ def command_line_interface():
                            'also make it more likely to boost non-description audio. Default is 0.4')
   parser.add_argument('--yes', action='store_true',
                       help='Auto-skips user prompts asking to verify information.')
+  parser.add_argument("--prepend", default="ad_", help='Output file name prepend text. Default is "ad_"')
   args = parser.parse_args()
   
   combine(args.video, args.audio, args.smoothness, args.stretch_video, args.keep_non_ad, args.boost,
-          args.ad_detect_sensitivity, args.boost_sensitivity, args.yes)
+          args.ad_detect_sensitivity, args.boost_sensitivity, args.yes, args.prepend)
 
 # allows the script to be run on its own, rather than through the package, for example:
 # python3 describealign.py video.mp4 audio_desc.mp3
