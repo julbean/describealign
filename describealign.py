@@ -470,7 +470,7 @@ def plot_alignment(plot_filename, path, smooth_path, quals, runs, bad_clips, ad_
   plt.savefig(plot_filename + '.png', dpi=400)
   plt.clf()
   
-  with open(plot_filename + '.txt.', 'w') as file:
+  with open(plot_filename + '.txt', 'w') as file:
     rough_clips, median_slope, _ = chunk_path(smooth_path, tol=2e-2)
     video_offset = np.diff(smooth_path[rough_clips[0][0]])[0]
     print("Main changes needed to video to align it to audio input:", file=file)
@@ -489,7 +489,7 @@ def plot_alignment(plot_filename, path, smooth_path, quals, runs, bad_clips, ad_
             f"{str_from_time(audio_desc_start)} to {str_from_time(audio_desc_end)}", file=file)
 
 # use the smooth alignment to replace runs of video sound with corresponding described audio
-def replace_aligned_segments(video_arr, audio_desc_arr, smooth_path, runs):
+def replace_aligned_segments(video_arr, audio_desc_arr, smooth_path, runs, no_pitch_correction=False):
   # perform quadratic interpolation of the audio description's waveform
   # this allows it to be stretched to match the corresponding video segment
   def audio_desc_arr_interp(samples):
@@ -519,24 +519,26 @@ def replace_aligned_segments(video_arr, audio_desc_arr, smooth_path, runs):
   
   x,y = zip(*smooth_path)
   for run in runs:
-    video_bounds = (int(y[run[ 0][0]] * AUDIO_SAMPLE_RATE),
-                    int(y[run[-1][1]] * AUDIO_SAMPLE_RATE))
-    if np.diff(video_bounds)[0] < MIN_DURATION_TO_REPLACE_SECONDS * AUDIO_SAMPLE_RATE:
+    run_length_seconds = y[run[-1][1]] - y[run[0][0]]
+    if run_length_seconds < MIN_DURATION_TO_REPLACE_SECONDS:
       continue
     anchor_point_path_indices = [clip[0] for clip in run]
     anchor_point_path_indices.append(run[-1][1])
     anchor_points = (np.array((np.array(x)[anchor_point_path_indices],
                                np.array(y)[anchor_point_path_indices])) * AUDIO_SAMPLE_RATE).astype(int)
-    # only apply pitch correction if the difference would be noticeable
     slopes = np.diff(anchor_points[1]) / np.diff(anchor_points[0])
-    if any(np.abs(1 - slopes) > JUST_NOTICEABLE_DIFF_IN_FREQ_RATIO):
-      # account for quirks of pytsmod's wsola anchor point implementation
-      anchor_points[1][-1] -= 1
-      anchor_y_offset = anchor_points[1][0]
-      anchor_points[1,:] -= anchor_y_offset
-      video_arr[:,slice(*video_bounds)] = pytsmod.wsola(audio_desc_arr, anchor_points)
-    else:
-      video_arr[:,slice(*video_bounds)] = get_interped_segment(run, audio_desc_arr_interp)
+    for clip_index, (clip, slope) in enumerate(zip(run, slopes)):
+      # only apply pitch correction if the difference would be noticeable
+      if no_pitch_correction or np.abs(1 - slope) <= JUST_NOTICEABLE_DIFF_IN_FREQ_RATIO:
+        stretched_audio = get_interped_segment([clip], audio_desc_arr_interp)
+      else:
+        anchor_point_pair = anchor_points[:,clip_index:clip_index+2].copy()
+        # account for quirks of pytsmod's wsola anchor point implementation
+        anchor_point_pair[1][-1] -= 1
+        anchor_y_offset = anchor_point_pair[1][0]
+        anchor_point_pair[1,:] -= anchor_y_offset
+        stretched_audio = pytsmod.wsola(audio_desc_arr, anchor_point_pair)
+      video_arr[:,slice(*anchor_points[1,clip_index:clip_index+2])] = stretched_audio
 
 # identify which segments of the replaced audio actually have the describer speaking
 # uses a Naive Bayes classifier smoothed with L1-Minimization to identify the describer
@@ -680,16 +682,16 @@ def encode_fit_as_ffmpeg_expr(smooth_path, clips, video_offset, start_key_frame)
   # TB is the timebase, which is how many seconds each unit of PTS corresponds to
   # the output value of the expression will be the frame's new PTS
   setts_cmd = ['TS']
-  skip_seconds = max(0, video_offset - start_key_frame)
-  if skip_seconds > 0:
+  start_skip = max(0, video_offset - start_key_frame)
+  if start_skip > 0:
     # lossless cutting can only happen at key frames, so we cut the video before the audio starts
     # but that means the video is behind the audio and needs to catch up by playing quicker
     # catchup_spread is the ratio of time to spend catching up to the amount of catching up needed
     catchup_spread = 1./CATCHUP_RATE
-    setts_cmd.append(f'+clip(TS,0,{skip_seconds*(1+catchup_spread)}/TB)*{-1./(1+catchup_spread)}')
+    setts_cmd.append(f'+clip(TS-STARTPTS,0,{start_skip*(1+catchup_spread)}/TB)*{-1./(1+catchup_spread)}')
   elif video_offset < 0:
     # if the audio starts before the video, stretch the first frame of the video back to meet it
-    setts_cmd.append(f'+clip(TS,0,{-video_offset/10000.}/TB)*10000')
+    setts_cmd.append(f'+clip(TS-STARTPTS,0,{-video_offset/10000.}/TB)*10000')
   # each segment of the linear fit can be encoded as a single clip function
   setts_cmd.append('+(0')
   for clip_start, clip_end in clips:
@@ -700,7 +702,7 @@ def encode_fit_as_ffmpeg_expr(smooth_path, clips, video_offset, start_key_frame)
     audio_desc_length = audio_desc_end - audio_desc_start
     video_length = video_end - video_start
     slope = audio_desc_length / video_length
-    setts_cmd.append(f'+clip(TS-{video_start:.4f}/TB,0,{max(0,video_length):.4f}/TB)*{slope-1:.9f}')
+    setts_cmd.append(f'+clip(TS-STARTPTS-{video_start:.4f}/TB,0,{max(0,video_length):.4f}/TB)*{slope-1:.9f}')
   setts_cmd.append(')')
   setts_cmd = ''.join(setts_cmd)
   return setts_cmd
@@ -748,13 +750,15 @@ def write_replaced_media_to_disk(output_filename, media_arr, video_file=None, au
     write_command = ffmpeg.output(media_input, original_video, output_filename,
                                   acodec='copy', vcodec='copy', scodec='copy',
                                   max_interleave_delta='0', loglevel='fatal',
-                                  **{'bsf:v': 'setts=ts=\'' + setts_cmd + '\''})
+                                  **{'bsf:v': 'setts=ts=\'' + setts_cmd + '\'',
+                                     'bsf:s': 'setts=ts=\'' + setts_cmd + '\''})
     write_command.run(cmd=get_ffmpeg())
 
 # combines videos with matching audio files (e.g. audio descriptions)
 # this is the main function of this script, it calls the other functions in order
-def combine(video, audio, smoothness=50, stretch_video=False, keep_non_ad=False, boost=0,
-            ad_detect_sensitivity=.6, boost_sensitivity=.4, yes=False, prepend="ad_"):
+def combine(video, audio, smoothness=50, stretch_video=False, keep_non_ad=False,
+            boost=0, ad_detect_sensitivity=.6, boost_sensitivity=.4, yes=False,
+            prepend="ad_", no_pitch_correction=False):
   video_files, video_file_types = get_sorted_filenames(video, VIDEO_EXTENSIONS, AUDIO_EXTENSIONS)
   if yes == False and sum(video_file_types) > 0:
     print("")
@@ -823,7 +827,7 @@ def combine(video, audio, smoothness=50, stretch_video=False, keep_non_ad=False,
       if keep_non_ad:
         video_arr_original = video_arr.copy()
       
-      replace_aligned_segments(video_arr, audio_desc_arr, smooth_path, runs)
+      replace_aligned_segments(video_arr, audio_desc_arr, smooth_path, runs, no_pitch_correction)
       del audio_desc_arr
       
       if keep_non_ad or boost != 0:
@@ -892,10 +896,13 @@ def command_line_interface():
   parser.add_argument('--yes', action='store_true',
                       help='Auto-skips user prompts asking to verify information.')
   parser.add_argument("--prepend", default="ad_", help='Output file name prepend text. Default is "ad_"')
+  parser.add_argument('--no_pitch_correction', action='store_true',
+                      help='Skips pitch correction step when stretching audio.')
   args = parser.parse_args()
   
-  combine(args.video, args.audio, args.smoothness, args.stretch_video, args.keep_non_ad, args.boost,
-          args.ad_detect_sensitivity, args.boost_sensitivity, args.yes, args.prepend)
+  combine(args.video, args.audio, args.smoothness, args.stretch_video, args.keep_non_ad,
+          args.boost, args.ad_detect_sensitivity, args.boost_sensitivity, args.yes,
+          args.prepend, args.no_pitch_correction)
 
 # allows the script to be run on its own, rather than through the package, for example:
 # python3 describealign.py video.mp4 audio_desc.mp3
