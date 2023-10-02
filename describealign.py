@@ -66,10 +66,16 @@ import scipy.interpolate
 import scipy.ndimage as nd
 import scipy.sparse
 import pytsmod
-import PySimpleGUIWx as sg
 import configparser
 import traceback
 import multiprocessing
+import platform
+
+IS_RUNNING_WINDOWS = platform.system() == 'Windows'
+if IS_RUNNING_WINDOWS:
+  import PySimpleGUIWx as sg
+else:
+  import PySimpleGUIQt as sg
 
 def display(text, func=None):
   if func:
@@ -976,12 +982,17 @@ def settings_gui(config_path):
     if event in (sg.WIN_CLOSED, 'Cancel') or settings_window.TKrootDestroyed:
       break
     if event == 'stretch_audio':
+      # work around bug in PySimpleGUIWx's InputText Update function where enabling/disabling are flipped
+      if IS_RUNNING_WINDOWS:
+        settings_window['boost'].Update(disabled = values['stretch_audio'])
+        settings_window['ad_detect_sensitivity'].Update(disabled = values['stretch_audio'])
+        settings_window['boost_sensitivity'].Update(disabled = values['stretch_audio'])
+      else:
+        settings_window['boost'].Update(disabled = not values['stretch_audio'])
+        settings_window['ad_detect_sensitivity'].Update(disabled = not values['stretch_audio'])
+        settings_window['boost_sensitivity'].Update(disabled = not values['stretch_audio'])
       settings_window['keep_non_ad'].Update(disabled = not values['stretch_audio'])
       settings_window['no_pitch_correction'].Update(disabled = not values['stretch_audio'])
-      # work around bug in PySimpleGUIWx's InputText Update function where enabling/disabling are flipped
-      settings_window['boost'].Update(disabled = values['stretch_audio'])
-      settings_window['ad_detect_sensitivity'].Update(disabled = values['stretch_audio'])
-      settings_window['boost_sensitivity'].Update(disabled = values['stretch_audio'])
     if event == 'Save':
       settings = values.copy()
       del settings['output_browse']
@@ -1017,9 +1028,11 @@ def combine_gui(video_files, audio_files, config_path):
     if not proc.is_alive():
       combine_window.DisableClose = False
     if not print_queue.empty():
-      cursor_position = output_textbox.WxTextCtrl.GetInsertionPoint()
+      if IS_RUNNING_WINDOWS:
+        cursor_position = output_textbox.WxTextCtrl.GetInsertionPoint()
       output_textbox.update('\n' + print_queue.get(), append=True)
-      output_textbox.WxTextCtrl.SetInsertionPoint(cursor_position)
+      if IS_RUNNING_WINDOWS:
+        output_textbox.WxTextCtrl.SetInsertionPoint(cursor_position)
     event, values = combine_window.read(timeout=100)
     # window closed event isn't always emitted, so also manually check window status
     if event == sg.WIN_CLOSED or combine_window.TKrootDestroyed:
@@ -1051,9 +1064,10 @@ def main_gui():
   audio_file_types = all_audio_file_types + audio_file_types
   video_and_audio_file_types = all_video_file_types + all_video_and_audio_file_types + video_and_audio_file_types
   # work around bug in PySimpleGUIWx's convert_tkinter_filetypes_to_wx function
-  file_fix = lambda file_types: file_types[:1] + [('|' + type[0], type[1]) for type in file_types[1:]]
-  audio_file_types = file_fix(audio_file_types)
-  video_and_audio_file_types = file_fix(video_and_audio_file_types)
+  if IS_RUNNING_WINDOWS:
+    file_fix = lambda file_types: file_types[:1] + [('|' + type[0], type[1]) for type in file_types[1:]]
+    audio_file_types = file_fix(audio_file_types)
+    video_and_audio_file_types = file_fix(video_and_audio_file_types)
   
   layout = [[sg.Text('Select media files to combine:', size=(40, 2), font=('Arial', 20), pad=(3,15))],
             [sg.Column([[sg.Text('Video Input:', size=(11, 2), pad=(1,5)),
