@@ -24,11 +24,8 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 '''
 
-VIDEO_EXTENSIONS = set(['mp4', 'mkv', 'avi', 'mov', 'webm', 'mkv', 'm4v', 'flv', 'vob'])
+VIDEO_EXTENSIONS = set(['mp4', 'mkv', 'avi', 'mov', 'webm', 'm4v', 'flv', 'vob'])
 AUDIO_EXTENSIONS = set(['mp3', 'm4a', 'opus', 'wav', 'aac', 'flac', 'ac3', 'mka'])
-OUTPUT_DIR = "videos_with_ad"
-PLOT_DIR = "alignment_plots"
-EXTERNAL_FILES_FOLDER = "resources"
 PLOT_ALIGNMENT_TO_FILE = True
 
 TIMESTEP_SIZE_SECONDS = .16
@@ -69,23 +66,44 @@ import scipy.interpolate
 import scipy.ndimage as nd
 import scipy.sparse
 import pytsmod
+import PySimpleGUIWx as sg
+import configparser
+import traceback
+import multiprocessing
 
-def ensure_folders_exist(dirs):
+def display(text, func=None):
+  if func:
+    func(text)
+  print(text)
+
+def throw_runtime_error(text, func=None):
+  if func:
+    func(text)
+  raise RuntimeError(text)
+
+def ensure_folders_exist(dirs, display_func=None):
   for dir in dirs:
     if not os.path.isdir(dir):
-      print("Directory not found, creating it:", dir)
+      display("Directory not found, creating it: " + dir, display_func)
       os.makedirs(dir)
 
 def get_sorted_filenames(path, extensions, alt_extensions=set([])):
-  path = os.path.abspath(path)
-  if os.path.isdir(path):
-    files = glob.glob(glob.escape(path) + "/*")
-    if len(files) == 0:
-      raise RuntimeError(f"Empty input directory:\n  {path}")
+  # path could be three different things: a file, a directory, a list of files
+  if type(path) is list:
+    files = [os.path.abspath(file) for file in path]
+    for file in files:
+      if not os.path.isfile(file):
+        raise RuntimeError(f"No file found at input path:\n  {file}")
   else:
-    if not os.path.isfile(path):
-      raise RuntimeError(f"No file or directory found at input path:\n  {path}")
-    files = [path]
+    path = os.path.abspath(path)
+    if os.path.isdir(path):
+      files = glob.glob(glob.escape(path) + "/*")
+      if len(files) == 0:
+        raise RuntimeError(f"Empty input directory:\n  {path}")
+    else:
+      if not os.path.isfile(path):
+        raise RuntimeError(f"No file or directory found at input path:\n  {path}")
+      files = [path]
   files = [file for file in files if os.path.splitext(file)[1][1:] in extensions | alt_extensions]
   if len(files) == 0:
     error_msg = [f"No files with valid extensions found at input path:\n  {path}",
@@ -754,12 +772,20 @@ def write_replaced_media_to_disk(output_filename, media_arr, video_file=None, au
                                      'bsf:s': 'setts=ts=\'' + setts_cmd + '\''})
     write_command.run(cmd=get_ffmpeg())
 
+# check whether static_ffmpeg has already installed ffmpeg and ffprobe
+def is_ffmpeg_installed():
+  ffmpeg_dir = static_ffmpeg.run.get_platform_dir()
+  indicator_file = os.path.join(ffmpeg_dir, "installed.crumb")
+  return os.path.exists(indicator_file)
+
 # combines videos with matching audio files (e.g. audio descriptions)
 # this is the main function of this script, it calls the other functions in order
-def combine(video, audio, smoothness=50, stretch_video=False, keep_non_ad=False,
+def combine(video, audio, smoothness=50, stretch_audio=False, keep_non_ad=False,
             boost=0, ad_detect_sensitivity=.6, boost_sensitivity=.4, yes=False,
-            prepend="ad_", no_pitch_correction=False):
+            prepend="ad_", no_pitch_correction=False, output_dir="videos_with_ad",
+            alignment_dir="alignment_plots", display_func=None):
   video_files, video_file_types = get_sorted_filenames(video, VIDEO_EXTENSIONS, AUDIO_EXTENSIONS)
+  
   if yes == False and sum(video_file_types) > 0:
     print("")
     print("One or more audio files found in video input. Was this intentional?")
@@ -773,29 +799,38 @@ def combine(video, audio, smoothness=50, stretch_video=False, keep_non_ad=False,
                  f"The audio path has {len(audio_desc_files)} files"]
     raise RuntimeError("\n".join(error_msg))
   
-  ensure_folders_exist([OUTPUT_DIR])
+  ensure_folders_exist([output_dir], display_func)
   if PLOT_ALIGNMENT_TO_FILE:
-    ensure_folders_exist([PLOT_DIR])
+    ensure_folders_exist([alignment_dir], display_func)
   
-  print("")
+  display("", display_func)
   for (video_file, audio_desc_file) in zip(video_files, audio_desc_files):
-    print(os.path.split(video_file)[1])
-    print(os.path.split(audio_desc_file)[1])
-    print("")
+    display(os.path.split(video_file)[1], display_func)
+    display(os.path.split(audio_desc_file)[1], display_func)
+    display("", display_func)
   if yes == False:
     print("Are the above input file pairings correct?")
     print("If not, press ctrl+c to kill this script.")
     input("If they are correct, press Enter to continue...")
     print("")
-  print("Processing files:")
+  
+  # if ffmpeg isn't installed, install it
+  if not is_ffmpeg_installed():
+    display("Downloading and installing ffmpeg (media editor, 50 MB download)...", display_func)
+    get_ffmpeg()
+    if not is_ffmpeg_installed():
+      RuntimeError("Failed to install ffmpeg.")
+    display("Successfully installed ffmpeg.", display_func)
+  
+  display("Processing files:", display_func)
   
   for (video_file, audio_desc_file, video_filetype) in zip(video_files, audio_desc_files,
                                                            video_file_types):
-    output_filename = os.path.join(OUTPUT_DIR, prepend + os.path.split(video_file)[1])
-    print(" ", output_filename)
+    output_filename = os.path.join(output_dir, prepend + os.path.split(video_file)[1])
+    display(" " + output_filename, display_func)
     
     if os.path.exists(output_filename):
-      print("   ", "output file already exists, skipping...")
+      display("   output file already exists, skipping...", display_func)
       continue
     
     video_arr = parse_audio_from_file(video_file)
@@ -815,15 +850,7 @@ def combine(video, audio, smoothness=50, stretch_video=False, keep_non_ad=False,
     cap_synced_end_points(smooth_path, video_arr, audio_desc_arr)
     
     ad_timings = None
-    if stretch_video:
-      if video_filetype == 1:
-        raise RuntimeError("Argument --stretch_video cannot be used when both inputs are audio files.")
-      video_offset = np.diff(smooth_path[clips[0][0]])[0]
-      start_key_frame = get_closest_key_frame_time(video_file, video_offset)
-      setts_cmd = encode_fit_as_ffmpeg_expr(smooth_path, clips, video_offset, start_key_frame)
-      write_replaced_media_to_disk(output_filename, None, video_file, audio_desc_file,
-                                   setts_cmd, start_key_frame)
-    else:
+    if stretch_audio:
       if keep_non_ad:
         video_arr_original = video_arr.copy()
       
@@ -852,11 +879,219 @@ def combine(video, audio, smoothness=50, stretch_video=False, keep_non_ad=False,
         write_replaced_media_to_disk(output_filename, video_arr, video_file)
       else:
         write_replaced_media_to_disk(output_filename, video_arr)
+    else:
+      if video_filetype == 1:
+        raise RuntimeError("Argument --stretch_audio is required when both inputs are audio files.")
+      video_offset = np.diff(smooth_path[clips[0][0]])[0]
+      start_key_frame = get_closest_key_frame_time(video_file, video_offset)
+      setts_cmd = encode_fit_as_ffmpeg_expr(smooth_path, clips, video_offset, start_key_frame)
+      write_replaced_media_to_disk(output_filename, None, video_file, audio_desc_file,
+                                   setts_cmd, start_key_frame)
     
     del video_arr
     if PLOT_ALIGNMENT_TO_FILE:
-      plot_filename = os.path.join(PLOT_DIR, os.path.splitext(os.path.split(video_file)[1])[0])
+      plot_filename = os.path.join(alignment_dir, os.path.splitext(os.path.split(video_file)[1])[0])
       plot_alignment(plot_filename, path, smooth_path, quals, runs, bad_clips, ad_timings)
+  display("All files processed.", display_func)
+
+def write_config_file(config_path, settings):
+  config = configparser.ConfigParser()
+  config.add_section('alignment')
+  config['alignment'] = {}
+  for key, value in settings.items():
+    config['alignment'][key] = str(value)
+  with open(config_path, 'w') as f:
+    config.write(f)
+
+def read_config_file(config_path):
+  config = configparser.ConfigParser()
+  config.read(config_path)
+  settings = {'smoothness':           config.getfloat('alignment', 'smoothness', fallback=50),
+              'stretch_audio':        config.getboolean('alignment', 'stretch_audio', fallback=False),
+              'keep_non_ad':          config.getboolean('alignment', 'keep_non_ad', fallback=False),
+              'boost':                config.getfloat('alignment', 'boost', fallback=0),
+              'ad_detect_sensitivity':config.getfloat('alignment', 'ad_detect_sensitivity', fallback=.6),
+              'boost_sensitivity':    config.getfloat('alignment', 'boost_sensitivity', fallback=.4),
+              'prepend':              config.get('alignment', 'prepend', fallback='ad_'),
+              'no_pitch_correction':  config.getboolean('alignment', 'no_pitch_correction', fallback=False),
+              'output_dir':           config.get('alignment', 'output_dir', fallback='videos_with_ad'),
+              'alignment_dir':        config.get('alignment', 'alignment_dir', fallback='alignment_plots')}
+  if not config.has_section('alignment'):
+    write_config_file(config_path, settings)
+  return settings
+
+def settings_gui(config_path):
+  settings = read_config_file(config_path)
+  layout = [[sg.Text('Check tooltips (i.e. mouse-over text) for descriptions:')],
+            [sg.Column([[sg.Text('prepend:', size=(8, 1.2), pad=(1,5)),
+                         sg.Input(default_text=str(settings['prepend']), size=(8, 1.2), pad=(10,5), key='prepend',
+                                  tooltip='Output file name prepend text. Default is "ad_"')]])],
+            [sg.Column([[sg.Text('output_dir:', size=(10, 1.2), pad=(1,5)),
+                         sg.Input(default_text=str(settings['output_dir']), size=(22, 1.2), pad=(10,5), key='output_dir',
+                                  tooltip='Directory combined output media is saved to. Default is "videos_with_ad"'),
+                                  sg.FolderBrowse(button_text="Browse Folder", key='output_browse')]])],
+            [sg.Column([[sg.Text('alignment_dir:', size=(13, 1.2), pad=(1,5)),
+                         sg.Input(default_text=str(settings['alignment_dir']), size=(22, 1.2), pad=(10,5), key='alignment_dir',
+                                  tooltip='Directory alignment data and plots are saved to. Default is "alignment_plots"'),
+                         sg.FolderBrowse(button_text="Browse Folder", key='alignment_browse')]], pad=(2,7))],
+            [sg.Column([[sg.Text('smoothness:', size=(12, 1), pad=(1,5)),
+                         sg.Input(default_text=str(settings['smoothness']), size=(8, 1.2), pad=(10,5), key='smoothness', 
+                                  tooltip='Lower values make the alignment more accurate when there are skips ' + \
+                                          '(e.g. describer pauses), but also make it more likely to misalign. ' + \
+                                          'Default is 50.')]])],
+            [sg.Checkbox('stretch_audio', default=settings['stretch_audio'], key='stretch_audio', change_submits=True,
+                         tooltip='Stretches the input audio to fit the input video. ' + \
+                                 'Default is to stretch the video to fit the audio.')],
+            [sg.Checkbox('keep_non_ad', default=settings['keep_non_ad'], key='keep_non_ad',
+                         disabled=not settings['stretch_audio'],
+                         tooltip='Tries to only replace segments with audio description. Useful if ' + \
+                                 'video\'s audio quality is better. Default is to replace all aligned audio. ' + \
+                                 'Requires --stretch_audio to be set, otherwise does nothing.')],
+            [sg.Column([[sg.Text('boost:', size=(6, 1), pad=(1,5)),
+                         sg.Input(default_text=str(settings['boost']), size=(8, 1.2), pad=(10,5),
+                                  key='boost', disabled=not settings['stretch_audio'],
+                                  tooltip='Boost (or quieten) description volume. Units are decibels (dB), so ' + \
+                                          '-3 makes the describer about 2x quieter, while 3 makes them 2x louder. ' + \
+                                          'Requires --stretch_audio to be set, otherwise does nothing.')]])],
+            [sg.Column([[sg.Text('ad_detect_sensitivity:', size=(21, 1.2), pad=(1.8,5)),
+                         sg.Input(default_text=str(settings['ad_detect_sensitivity']), size=(8, 1.2), pad=(10,5),
+                                  key='ad_detect_sensitivity', disabled=not settings['stretch_audio'],
+                                  tooltip='Audio description detection sensitivity ratio. Higher values make ' + \
+                                          '--keep_non_ad more likely to replace aligned audio. Default is 0.6')]])],
+            [sg.Column([[sg.Text('boost_sensitivity:', size=(17, 1.2), pad=(1,5)),
+                         sg.Input(default_text=str(settings['boost_sensitivity']), size=(8, 1.2), pad=(10,5),
+                                  key='boost_sensitivity', disabled=not settings['stretch_audio'],
+                                  tooltip='Higher values make --boost less likely to miss a description, but ' + \
+                                          'also make it more likely to boost non-description audio. Default is 0.4')]])],
+            [sg.Checkbox('no_pitch_correction', default=settings['no_pitch_correction'], key='no_pitch_correction',
+                         disabled=not settings['stretch_audio'],
+                         tooltip='Skips pitch correction step when stretching audio. ' + \
+                                 'Requires --stretch_audio to be set, otherwise does nothing.')],
+            [sg.Column([[sg.Submit('Save', pad=(40,3)),
+                         sg.Button('Cancel')]], pad=((135,3),10))]]
+  settings_window = sg.Window('Settings - describealign', layout, font=('Arial', 16), finalize=True)
+  settings_window['prepend'].set_focus()
+  while True:
+    event, values = settings_window.read()
+    if event in (sg.WIN_CLOSED, 'Cancel') or settings_window.TKrootDestroyed:
+      break
+    if event == 'stretch_audio':
+      settings_window['keep_non_ad'].Update(disabled = not values['stretch_audio'])
+      settings_window['no_pitch_correction'].Update(disabled = not values['stretch_audio'])
+      # work around bug in PySimpleGUIWx's InputText Update function where enabling/disabling are flipped
+      settings_window['boost'].Update(disabled = values['stretch_audio'])
+      settings_window['ad_detect_sensitivity'].Update(disabled = values['stretch_audio'])
+      settings_window['boost_sensitivity'].Update(disabled = values['stretch_audio'])
+    if event == 'Save':
+      settings = values.copy()
+      del settings['output_browse']
+      del settings['alignment_browse']
+      write_config_file(config_path, settings)
+      break
+  settings_window.close()
+
+def combine_print_exceptions(print_queue, *args, **kwargs):
+  try:
+    combine(*args, **kwargs)
+  except:
+    print_queue.put(traceback.format_exc())
+    # raise
+
+def combine_gui(video_files, audio_files, config_path):
+  output_textbox = sg.Multiline(size=(80,30), key='-OUTPUT-')
+  layout = [[output_textbox],
+            [sg.Button('Close', pad=(360,5))]]
+  combine_window = sg.Window('Combining - describealign', layout, font=('Arial', 16),
+                             disable_close=True, finalize=True)
+  output_textbox.update('Combining media files:', append=True)
+  print_queue = multiprocessing.Queue()
+  
+  settings = read_config_file(config_path)
+  settings.update({'display_func':print_queue.put, 'yes':True})
+  proc = multiprocessing.Process(target=combine_print_exceptions,
+                                 args=(print_queue, video_files, audio_files),
+                                 kwargs=settings, daemon=True)
+  proc.start()
+  while True:
+    # if the script isn't running anymore, re-enable the default close window button
+    if not proc.is_alive():
+      combine_window.DisableClose = False
+    if not print_queue.empty():
+      cursor_position = output_textbox.WxTextCtrl.GetInsertionPoint()
+      output_textbox.update('\n' + print_queue.get(), append=True)
+      output_textbox.WxTextCtrl.SetInsertionPoint(cursor_position)
+    event, values = combine_window.read(timeout=100)
+    # window closed event isn't always emitted, so also manually check window status
+    if event == sg.WIN_CLOSED or combine_window.TKrootDestroyed:
+      if proc.is_alive():
+        proc.terminate()
+      break
+    if event == 'Close':
+      if not proc.is_alive():
+        combine_window.DisableClose = False
+        break
+      selection = sg.PopupYesNo('Combiner is still running, stop it and close anyway?')
+      if selection != 'Yes':
+        continue
+      proc.terminate()
+      combine_window.DisableClose = False
+      break
+  combine_window.close()
+
+def main_gui():
+  config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.ini')
+  sg.theme('Light Blue 2')
+  
+  all_audio_file_types = [('All Audio File Types', '*.' + ';*.'.join(AUDIO_EXTENSIONS)),]
+  all_video_file_types = [('All Video File Types', '*.' + ';*.'.join(VIDEO_EXTENSIONS)),]
+  all_video_and_audio_file_types = [('All Video and Audio File Types',
+                                     '*.' + ';*.'.join(VIDEO_EXTENSIONS | AUDIO_EXTENSIONS)),]
+  audio_file_types = [(ext, "*." + ext) for ext in AUDIO_EXTENSIONS]
+  video_and_audio_file_types = [(ext, "*." + ext) for ext in VIDEO_EXTENSIONS] + audio_file_types
+  audio_file_types = all_audio_file_types + audio_file_types
+  video_and_audio_file_types = all_video_file_types + all_video_and_audio_file_types + video_and_audio_file_types
+  # work around bug in PySimpleGUIWx's convert_tkinter_filetypes_to_wx function
+  file_fix = lambda file_types: file_types[:1] + [('|' + type[0], type[1]) for type in file_types[1:]]
+  audio_file_types = file_fix(audio_file_types)
+  video_and_audio_file_types = file_fix(video_and_audio_file_types)
+  
+  layout = [[sg.Text('Select media files to combine:', size=(40, 2), font=('Arial', 20), pad=(3,15))],
+            [sg.Column([[sg.Text('Video Input:', size=(11, 2), pad=(1,5)),
+                         sg.Input(size=(35, 1.2), pad=(10,5), key='-VIDEO_FILES-',
+                                  tooltip='List video filenames here, in order, separated by semicolons'),
+                         sg.FilesBrowse(button_text="Browse Video",
+                                        file_types=video_and_audio_file_types,
+                                        tooltip='Select one or more video files')]], pad=(2,7))],
+            [sg.Column([[sg.Text('Audio Input:', size=(11, 2), pad=(1,5)),
+                         sg.Input(size=(35, 1.2), pad=(10,5), key='-AUDIO_FILES-',
+                                  tooltip='List audio filenames here, in order, separated by semicolons'),
+                         sg.FilesBrowse(button_text="Browse Audio",
+                                        file_types=audio_file_types,
+                                        tooltip='Select one or more audio files')]], pad=(2,7))],
+            [sg.Column([[sg.Submit('Combine', pad=(40,3), tooltip='Combine selected video and audio files'),
+                         sg.Button('Settings', tooltip='Edit settings for the GUI and algorithm.')]],
+                         pad=((135,3),10))]]
+  window = sg.Window('describealign', layout, font=('Arial', 16), resizable=False, finalize=True)
+  window['-VIDEO_FILES-'].set_focus()
+  while True:
+    event, values = window.read()
+    if event == 'Combine':
+      if len(values['-VIDEO_FILES-']) == 0 or \
+         len(values['-AUDIO_FILES-']) == 0:
+        window.disable()
+        sg.Popup('Error: empty input field.', font=('Arial', 20))
+        window.enable()
+        continue
+      video_files = values['-VIDEO_FILES-'].split(';')
+      audio_files = values['-AUDIO_FILES-'].split(';')
+      combine_gui(video_files, audio_files, config_path)
+    if event == 'Settings':
+      window.disable()
+      settings_gui(config_path)
+      window.enable()
+    if event == sg.WIN_CLOSED:
+      break
+  window.close()
 
 # Entry point for command line interaction, for example:
 # > describealign video.mp4 audio_desc.mp3
@@ -866,10 +1101,11 @@ def command_line_interface():
   class ArgumentParser(argparse.ArgumentParser):
     def error(self, message):
       if 'required: video, audio' in message:
-        print('No input arguments detected, did you accidentally run the binary directly?')
-        print('describealign must be run from command line (e.g. command prompt, terminal)')
-        input("Press Enter to exit...")
-      self.exit(2, f'{self.prog}: error: {message}\n')
+        print('No input arguments detected, starting GUI...')
+        main_gui()
+        self.exit()
+      else:
+        self.exit(2, f'{self.prog}: error: {message}\n')
   parser = ArgumentParser(description="Replaces a video's sound with an audio description.",
                           usage="describealign video_file.mp4 audio_file.mp3")
   parser.add_argument("video", help='A video file or directory containing video files.')
@@ -878,15 +1114,17 @@ def command_line_interface():
                       help='Lower values make the alignment more accurate when there are skips ' + \
                            '(e.g. describer pauses), but also make it more likely to misalign. ' + \
                            'Default is 50.')
-  parser.add_argument('--stretch_video', action='store_true',
-                      help='Stretches the input video to fit the audio description. ' + \
-                           'Default is to stretch the audio to fit the video.')
+  parser.add_argument('--stretch_audio', action='store_true',
+                      help='Stretches the input audio to fit the input video. ' + \
+                           'Default is to stretch the video to fit the audio.')
   parser.add_argument('--keep_non_ad', action='store_true',
                       help='Tries to only replace segments with audio description. Useful if ' + \
-                           'video\'s audio quality is better. Default is to replace all aligned audio.')
+                           'video\'s audio quality is better. Default is to replace all aligned audio. ' + \
+                           'Requires --stretch_audio to be set, otherwise does nothing.')
   parser.add_argument('--boost', type=float, default=0,
                       help='Boost (or quieten) description volume. Units are decibels (dB), so ' + \
-                           '-3 makes the describer about 2x quieter, while 3 makes them 2x louder.')
+                           '-3 makes the describer about 2x quieter, while 3 makes them 2x louder. ' + \
+                           'Requires --stretch_audio to be set, otherwise does nothing.')
   parser.add_argument('--ad_detect_sensitivity', type=float, default=.6,
                       help='Audio description detection sensitivity ratio. Higher values make ' + \
                            '--keep_non_ad more likely to replace aligned audio. Default is 0.6')
@@ -897,12 +1135,17 @@ def command_line_interface():
                       help='Auto-skips user prompts asking to verify information.')
   parser.add_argument("--prepend", default="ad_", help='Output file name prepend text. Default is "ad_"')
   parser.add_argument('--no_pitch_correction', action='store_true',
-                      help='Skips pitch correction step when stretching audio.')
+                      help='Skips pitch correction step when stretching audio. ' + \
+                           'Requires --stretch_audio to be set, otherwise does nothing.')
+  parser.add_argument("--output_dir", default="videos_with_ad",
+                      help='Directory combined output media is saved to. Default is "videos_with_ad"')
+  parser.add_argument("--alignment_dir", default="alignment_plots",
+                      help='Directory alignment data and plots are saved to. Default is "alignment_plots"')
   args = parser.parse_args()
   
-  combine(args.video, args.audio, args.smoothness, args.stretch_video, args.keep_non_ad,
+  combine(args.video, args.audio, args.smoothness, args.stretch_audio, args.keep_non_ad,
           args.boost, args.ad_detect_sensitivity, args.boost_sensitivity, args.yes,
-          args.prepend, args.no_pitch_correction)
+          args.prepend, args.no_pitch_correction, args.output_dir, args.alignment_dir)
 
 # allows the script to be run on its own, rather than through the package, for example:
 # python3 describealign.py video.mp4 audio_desc.mp3
