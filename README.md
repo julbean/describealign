@@ -5,12 +5,18 @@ Combines videos with matching audio files (e.g. audio descriptions). Works by al
 ## Quickstart
 
 Create a copy of a video file with the sound replaced by an audio description:
-```bash
-describealign video.mp4 audio_desc.mp3
-```
+
+<img src="https://github.com/julbean/describealign/blob/main/readme_media/describealign_gui_main.PNG" alt="GUI main" align="middle" width="50%"/>
+
+Select a video file and a corresponding audio description using the file browsers, then click "Combine":
+
+<img src="https://github.com/julbean/describealign/blob/main/readme_media/describealign_gui_combiner.PNG" alt="GUI combiner" align="middle" width="50%"/>
+
+The combined media is saved in the folder "videos_with_ad" placed in the directory describealign was run in. The directory that combined media files are saved in can be changed in "Settings":
+
+<img src="https://github.com/julbean/describealign/blob/main/readme_media/describealign_gui_settings.PNG" alt="GUI combiner" align="middle" width="50%"/>
 
 Note: media longer than an hour should only be processed on computers with at least 16 GB of RAM.
-
 
 ## Installation
 
@@ -24,7 +30,7 @@ pip install describealign
 ```
 Note: You may need to add the folder Python's pip.exe is in to your system path. It might be something like: "C:/Users/User/AppData/Local/Programs/Python/Python310/Scripts" Don't forget to restart command prompt after updating the PATH!
 
-The script can then be run from console/command prompt in any directory with:
+The GUI can then be opened from console/command prompt in any directory with:
 ```bash
 describealign
 ```
@@ -35,30 +41,14 @@ Note: You may need to add the folder Python's compiled scripts (e.g. describeali
 Alternatively, the python script (describealign.py) can be downloaded from here and run directly after installing the dependencies manually (requirements.txt):
 ```bash
 pip install -r requirements.txt
-python3 describealign.py video.mp4 audio_desc.mp3
+python3 describealign.py
 ```
 
-### Windows binary
+### binary method
 
 The binary methods don't require installing python or messing about with PATH.
 
-Windows users can instead download and unzip the [latest release](https://github.com/julbean/describealign/releases/latest), then run:
-```bash
-describealign.exe video.mp4 audio_desc.mp3
-```
-
-Note that double-clicking "describealign.exe" won't do anything; the above command must be run in command prompt and in the same directory or it won't be able to find "ffmpeg" in the resources folder.
-
-A command prompt window in the correct directory can be opened by typing "cmd" into the filepath bar at the top of file explorer and then hitting enter.
-
-### MacOS binary
-
-Mac users can do the same with the older [version 0.1.4](https://github.com/julbean/describealign/releases/tag/v0.1.4), then run:
-```bash
-./describealign video.mp4 audio_desc.mp3
-```
-
-Note the above command must be run in Terminal and in the same directory or it won't be able to find "ffmpeg" in the resources folder.
+Windows and Mac users can instead download and unzip the [latest release](https://github.com/julbean/describealign/releases/latest), then double click on describealign.exe to open the GUI.
 
 ### updating
 
@@ -72,12 +62,9 @@ Note: users with multiple python versions may need to use pip3 rather than pip.
 
 ## Testing Installation
 
-The installation can be tested on a clip from the 1929 comedy short [Ask Dad](https://archive.org/details/ask_dad), with the first part of an [audio description](https://archive.org/details/MoviesForTheBlind01-askDad) provided by Valerie H. in her podcast [Movies For the Blind.](https://moviesfortheblind.com/) Download the trimmed versions from the test_media folder in this repository, change to the directory with the files and run:
-```bash
-describealign ask_dad_trimmed.mp4 ask_dad_moviesfortheblind_ep_01_trimmed.mp3
-```
+The installation can be tested on a clip from the 1929 comedy short [Ask Dad](https://archive.org/details/ask_dad), with the first part of an [audio description](https://archive.org/details/MoviesForTheBlind01-askDad) provided by Valerie H. in her podcast [Movies For the Blind.](https://moviesfortheblind.com/) Download the trimmed versions from the test_media folder in this repository, then select them in the GUI:
 
-Note that users of the Windows binary release will need to add ".exe" onto the end of describealign in the above command, while MacOS binary users will instead need to add "./" onto the beginning.
+<img src="https://github.com/julbean/describealign/blob/main/readme_media/describealign_gui_main_filled.PNG" alt="GUI main filled" align="middle" width="50%"/>
 
 This produces two outputs, a new video file "videos_with_ad/ad_ask_dad_trimmed.mp4" and a plot in alignment_plots:
 
@@ -89,8 +76,26 @@ If the full video (22 minutes) and audio description (27 minutes) are used inste
 
 <img src="https://github.com/julbean/describealign/blob/main/readme_media/ask_dad.png" alt="Ask Dad Alignment" align="middle" width="50%"/>
 
-This plot shows a number of small pauses in the audio description starting around 10 minutes in, which add up to a total offset of 30 seconds by the end of the video. The jump discontinuities have been smoothed out by stretching the audio description. All of the audio was replaced except for a segment around the 9 minute mark in which the video's original audio was kept, as the replacement audio would have been too noticably distorted (i.e. more than 10% stretched).
+This plot shows a number of small pauses in the audio description starting around 10 minutes in, which add up to a total offset of 30 seconds by the end of the video. The jump discontinuities have been smoothed out by stretching the video. The plot also shows which segments of audio would be replaced if --stretch_audio were used. All of the audio would be replaced except for a segment around the 9 minute mark in which the video's original audio would be kept, as the replacement audio would have been too noticably distorted (i.e. more than 10% stretched).
 
+A text version of each plot is saved alongside each image:
+
+```
+Main changes needed to video to align it to audio input:
+Start Offset: 199.06 seconds
+Median Rate Change: 0.00%
+Rate change of    0.0% from  0:00:00.00 to  0:09:08.64 aligning with audio from  0:03:19.06 to  0:12:27.67
+Rate change of   11.0% from  0:09:08.64 to  0:10:07.34 aligning with audio from  0:12:27.67 to  0:13:20.56
+Rate change of    0.4% from  0:10:07.34 to  0:10:51.53 aligning with audio from  0:13:20.56 to  0:14:04.60
+Rate change of    4.7% from  0:10:51.53 to  0:13:48.45 aligning with audio from  0:14:04.60 to  0:16:53.65
+Rate change of    0.2% from  0:13:48.45 to  0:14:48.80 aligning with audio from  0:16:53.65 to  0:17:53.89
+Rate change of    6.4% from  0:14:48.80 to  0:17:42.84 aligning with audio from  0:17:53.89 to  0:20:37.44
+Rate change of    0.4% from  0:17:42.84 to  0:18:52.56 aligning with audio from  0:20:37.44 to  0:21:46.88
+Rate change of    4.3% from  0:18:52.56 to  0:20:02.88 aligning with audio from  0:21:46.88 to  0:22:54.31
+Rate change of   -0.0% from  0:20:02.88 to  0:20:52.45 aligning with audio from  0:22:54.31 to  0:23:43.91
+Rate change of   -2.9% from  0:20:52.45 to  0:21:38.09 aligning with audio from  0:23:43.91 to  0:24:30.92
+Rate change of   -0.1% from  0:21:38.09 to  0:22:15.77 aligning with audio from  0:24:30.92 to  0:25:08.63
+```
 
 ## Advanced Usage
 
@@ -116,7 +121,14 @@ The default behavior of --stretch_audio is to replace all or almost all of a vid
 
 ### additional arguments
 
-If an alignment isn't working perfectly, the ambitious user can try adjusting a few parameters with arguments described in "--help".
+If an alignment isn't working perfectly, the ambitious user can try adjusting a few parameters with arguments described in "--help" and the GUI's Settings tooltips.
+
+### command line interface
+
+describalign can be run without the GUI by specifying input media as positional arguments:
+```bash
+describealign video.mp4 audio_desc.mp3
+```
 
 ### module
 
