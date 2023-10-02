@@ -98,21 +98,21 @@ This plot shows a number of small pauses in the audio description starting aroun
 
 describealign can be given a directory of videos and a directory of audio files rather than individual files. describealign assumes files from the two directories correspond based on their lexicographic order.
 
-### stretch_video (video-to-audio alignment)
+### stretch_audio (audio-to-video alignment)
 
-By default describealign stretches audio descriptions to fit video, but the inverse is also possible: stretching the video to fit the audio description with the "--stretch_video" argument.
+By default describealign stretches video to fit audio descriptions, but the inverse is also possible: stretching the audio description to fit the video with the "--stretch_audio" argument.
 
 ### audio-to-audio
 
-Whereas describealign is designed to align audio-to-video, it can also align an audio file to another audio file.
+Whereas describealign is designed to align video-to-audio, it can also align an audio file to another audio file.
 
 ### boost
 
-describealign also has a few other experimental capabilities, like boosting the volume of audio descriptions relative to the video's sound with the "--boost x" argument, where x is in decibels. "--boost 3" approximately doubles the audio description volume, while "--boost -3" approximately halves it.
+When using the --stretch_audio argument, describealign also has a few other experimental capabilities, like boosting the volume of audio descriptions relative to the video's sound with the "--boost x" argument, where x is in decibels. "--boost 3" approximately doubles the audio description volume, while "--boost -3" approximately halves it.
 
 ### keep_non_ad
 
-The default behavior of describealign is to replace all or almost all of a video's audio with the audio description file's audio. But the "--keep_non_ad" argument tells describealign to try to only replace audio when the describer is speaking. This can be useful when the audio description has significantly worse sound quality than the video.
+The default behavior of --stretch_audio is to replace all or almost all of a video's audio with the audio description file's audio. But the "--keep_non_ad" argument tells describealign to try to only replace audio when the describer is speaking. This can be useful when the audio description has significantly worse sound quality than the video.
 
 ### additional arguments
 
@@ -125,15 +125,6 @@ describealign can also be used as a python module:
 import describealign as dal
 dal.combine("ask_dad_trimmed.mp4", "ask_dad_moviesfortheblind_ep_01_trimmed.mp3")
 ```
-
-## Planned Features
-
-### GUI
-
-Many describealign users are describers or family members of the visually impaired, so an optional, cross-platform Graphical User Interface could improve usability.
-
-
-
 
 
 
