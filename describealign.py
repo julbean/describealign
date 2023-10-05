@@ -449,7 +449,7 @@ def cap_synced_end_points(smooth_path, video_arr, audio_desc_arr):
     smooth_path[-1] = new_end_point
 
 # visualize both the rough and smooth alignments
-def plot_alignment(plot_filename, path, smooth_path, quals, runs, bad_clips, ad_timings):
+def plot_alignment(plot_filename_no_ext, path, smooth_path, quals, runs, bad_clips, ad_timings):
   scatter_color = [.2,.4,.8]
   lcs_rgba = np.zeros((len(quals),4))
   lcs_rgba[:,:3] = np.array(scatter_color)[None,:]
@@ -491,10 +491,10 @@ def plot_alignment(plot_filename, path, smooth_path, quals, runs, bad_clips, ad_
   plt.title('Alignment')
   plt.legend().legendHandles[0].set_color(scatter_color)
   plt.tight_layout()
-  plt.savefig(plot_filename + '.png', dpi=400)
+  plt.savefig(plot_filename_no_ext + '.png', dpi=400)
   plt.clf()
   
-  with open(plot_filename + '.txt', 'w') as file:
+  with open(plot_filename_no_ext + '.txt', 'w') as file:
     rough_clips, median_slope, _ = chunk_path(smooth_path, tol=2e-2)
     video_offset = np.diff(smooth_path[rough_clips[0][0]])[0]
     print("Main changes needed to video to align it to audio input:", file=file)
@@ -789,7 +789,7 @@ def is_ffmpeg_installed():
 def combine(video, audio, smoothness=50, stretch_audio=False, keep_non_ad=False,
             boost=0, ad_detect_sensitivity=.6, boost_sensitivity=.4, yes=False,
             prepend="ad_", no_pitch_correction=False, output_dir="videos_with_ad",
-            alignment_dir="alignment_plots", display_func=None):
+            alignment_dir="alignment_plots", extension="mkv", display_func=None):
   video_files, video_file_types = get_sorted_filenames(video, VIDEO_EXTENSIONS, AUDIO_EXTENSIONS)
   
   if yes == False and sum(video_file_types) > 0:
@@ -832,7 +832,14 @@ def combine(video, audio, smoothness=50, stretch_audio=False, keep_non_ad=False,
   
   for (video_file, audio_desc_file, video_filetype) in zip(video_files, audio_desc_files,
                                                            video_file_types):
-    output_filename = os.path.join(output_dir, prepend + os.path.split(video_file)[1])
+    # Default is to use the input video's extension for the output video
+    if extension is None or extension in ["", "copy"]:
+      ext = os.path.splitext(os.path.split(video_file)[1])[1]
+    else:
+      # add a dot to the extension if it's missing
+      ext = ('' if extension[0] == '.' else '.') + extension
+    output_filename = prepend + os.path.splitext(os.path.split(video_file)[1])[0] + ext
+    output_filename = os.path.join(output_dir, output_filename)
     display(" " + output_filename, display_func)
     
     if os.path.exists(output_filename):
@@ -896,8 +903,8 @@ def combine(video, audio, smoothness=50, stretch_audio=False, keep_non_ad=False,
     
     del video_arr
     if PLOT_ALIGNMENT_TO_FILE:
-      plot_filename = os.path.join(alignment_dir, os.path.splitext(os.path.split(video_file)[1])[0])
-      plot_alignment(plot_filename, path, smooth_path, quals, runs, bad_clips, ad_timings)
+      plot_filename_no_ext = os.path.join(alignment_dir, os.path.splitext(os.path.split(video_file)[1])[0])
+      plot_alignment(plot_filename_no_ext, path, smooth_path, quals, runs, bad_clips, ad_timings)
   display("All files processed.", display_func)
 
 def write_config_file(config_path, settings):
@@ -921,7 +928,8 @@ def read_config_file(config_path):
               'prepend':              config.get('alignment', 'prepend', fallback='ad_'),
               'no_pitch_correction':  config.getboolean('alignment', 'no_pitch_correction', fallback=False),
               'output_dir':           config.get('alignment', 'output_dir', fallback='videos_with_ad'),
-              'alignment_dir':        config.get('alignment', 'alignment_dir', fallback='alignment_plots')}
+              'alignment_dir':        config.get('alignment', 'alignment_dir', fallback='alignment_plots'),
+              'extension':            config.get('alignment', 'extension', fallback='mkv')}
   if not config.has_section('alignment'):
     write_config_file(config_path, settings)
   return settings
@@ -929,6 +937,10 @@ def read_config_file(config_path):
 def settings_gui(config_path):
   settings = read_config_file(config_path)
   layout = [[sg.Text('Check tooltips (i.e. mouse-over text) for descriptions:')],
+            [sg.Column([[sg.Text('extension:', size=(10, 1.2), pad=(1,5)),
+                         sg.Input(default_text=str(settings['extension']), size=(8, 1.2), pad=(10,5), key='extension',
+                                  tooltip='File type of output video. When set to "copy", copies the ' + \
+                                          'file type of the corresponding input video. Default is "mkv".')]])],
             [sg.Column([[sg.Text('prepend:', size=(8, 1.2), pad=(1,5)),
                          sg.Input(default_text=str(settings['prepend']), size=(8, 1.2), pad=(10,5), key='prepend',
                                   tooltip='Output file name prepend text. Default is "ad_"')]])],
@@ -976,7 +988,7 @@ def settings_gui(config_path):
             [sg.Column([[sg.Submit('Save', pad=(40,3)),
                          sg.Button('Cancel')]], pad=((135,3),10))]]
   settings_window = sg.Window('Settings - describealign', layout, font=('Arial', 16), finalize=True)
-  settings_window['prepend'].set_focus()
+  settings_window['extension'].set_focus()
   while True:
     event, values = settings_window.read()
     if event in (sg.WIN_CLOSED, 'Cancel') or settings_window.TKrootDestroyed:
@@ -1155,11 +1167,15 @@ def command_line_interface():
                       help='Directory combined output media is saved to. Default is "videos_with_ad"')
   parser.add_argument("--alignment_dir", default="alignment_plots",
                       help='Directory alignment data and plots are saved to. Default is "alignment_plots"')
+  parser.add_argument("--extension", default="mkv",
+                      help='File type of output video. When set to "copy", copies the ' + \
+                           'file type of the corresponding input video. Default is "mkv".')
   args = parser.parse_args()
   
   combine(args.video, args.audio, args.smoothness, args.stretch_audio, args.keep_non_ad,
           args.boost, args.ad_detect_sensitivity, args.boost_sensitivity, args.yes,
-          args.prepend, args.no_pitch_correction, args.output_dir, args.alignment_dir)
+          args.prepend, args.no_pitch_correction, args.output_dir, args.alignment_dir,
+          args.extension)
 
 # allows the script to be run on its own, rather than through the package, for example:
 # python3 describealign.py video.mp4 audio_desc.mp3
