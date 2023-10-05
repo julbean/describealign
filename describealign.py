@@ -753,14 +753,14 @@ def write_replaced_media_to_disk(output_filename, media_arr, video_file=None, au
     media_input = ffmpeg.input('pipe:', format='s16le', acodec='pcm_s16le',
                                ac=2, ar=AUDIO_SAMPLE_RATE)
     if video_file is None:
-      write_command = ffmpeg.output(media_input, output_filename, loglevel='fatal')
+      write_command = ffmpeg.output(media_input, output_filename, loglevel='fatal').overwrite_output()
     else:
       # "-max_interleave_delta 0" is sometimes necessary to fix an .mkv bug that freezes audio/video:
       #   ffmpeg bug warning: [matroska @ 0000000002c814c0] Starting new cluster due to timestamp
       # more info about the bug and fix: https://reddit.com/r/ffmpeg/comments/efddfs/
       write_command = ffmpeg.output(media_input, original_video, output_filename,
                                     acodec='aac', vcodec='copy', scodec='copy',
-                                    max_interleave_delta='0', loglevel='fatal')
+                                    max_interleave_delta='0', loglevel='fatal').overwrite_output()
     ffmpeg_caller = write_command.run_async(pipe_stdin=True, cmd=get_ffmpeg())
     ffmpeg_caller.stdin.write(media_arr.astype(np.int16).T.tobytes())
     ffmpeg_caller.stdin.close()
@@ -771,12 +771,36 @@ def write_replaced_media_to_disk(output_filename, media_arr, video_file=None, au
                                       show_entries='format=duration')['streams']
     audio_desc_duration = max([float(stream['duration']) for stream in audio_desc_streams])
     original_video = ffmpeg.input(video_file, an=None, ss=start_key_frame)
-    write_command = ffmpeg.output(media_input, original_video, output_filename,
-                                  acodec='copy', vcodec='copy', scodec='copy',
-                                  max_interleave_delta='0', loglevel='fatal',
-                                  **{'bsf:v': 'setts=ts=\'' + setts_cmd + '\'',
-                                     'bsf:s': 'setts=ts=\'' + setts_cmd + '\''})
-    write_command.run(cmd=get_ffmpeg())
+    if os.path.splitext(output_filename)[1] == os.path.splitext(video_file)[1]:
+      write_command = ffmpeg.output(media_input, original_video, output_filename,
+                                    acodec='copy', vcodec='copy', scodec='copy',
+                                    max_interleave_delta='0', loglevel='fatal',
+                                    **{'bsf:v': 'setts=ts=\'' + setts_cmd + '\'',
+                                       'bsf:s': 'setts=ts=\'' + setts_cmd + '\''}).overwrite_output()
+      write_command.run(cmd=get_ffmpeg())
+    else:
+      # work around for bug that sometimes breaks setts when output and input formats differ
+      # the trick is separating the input and output by piping from one ffmpeg process into another
+      # mkv files break if 'nut' is used, while other files break when 'matroska' is used
+      format = 'matroska' if os.path.splitext(output_filename)[1] == '.mkv' else 'nut'
+      write_command = ffmpeg.output(original_video, 'pipe:', format=format, vsync='passthrough',
+                                    c='copy', loglevel='fatal')
+      ffmpeg_caller = write_command.run_async(pipe_stdout=True, cmd=get_ffmpeg())
+      pipe_input = ffmpeg.input('pipe:', format=format, thread_queue_size='512')
+      write_command2 = ffmpeg.output(media_input, pipe_input, output_filename, c='copy',
+                                     max_interleave_delta='0', loglevel='fatal', vsync='passthrough',
+                                     **{'bsf:v': 'setts=ts=\'' + setts_cmd + '\'',
+                                        'bsf:s': 'setts=ts=\'' + setts_cmd + '\''}).overwrite_output()
+      ffmpeg_caller2 = write_command2.run_async(pipe_stdin=True, cmd=get_ffmpeg())
+      while True:
+        in_bytes = ffmpeg_caller.stdout.read(100000)
+        if not in_bytes:
+          break
+        ffmpeg_caller2.stdin.write(in_bytes)
+      ffmpeg_caller2.stdin.close()
+      ffmpeg_caller.wait()
+      ffmpeg_caller2.wait()
+
 
 # check whether static_ffmpeg has already installed ffmpeg and ffprobe
 def is_ffmpeg_installed():
@@ -789,7 +813,7 @@ def is_ffmpeg_installed():
 def combine(video, audio, smoothness=50, stretch_audio=False, keep_non_ad=False,
             boost=0, ad_detect_sensitivity=.6, boost_sensitivity=.4, yes=False,
             prepend="ad_", no_pitch_correction=False, output_dir="videos_with_ad",
-            alignment_dir="alignment_plots", extension="mkv", display_func=None):
+            alignment_dir="alignment_plots", extension="copy", display_func=None):
   video_files, video_file_types = get_sorted_filenames(video, VIDEO_EXTENSIONS, AUDIO_EXTENSIONS)
   
   if yes == False and sum(video_file_types) > 0:
@@ -834,7 +858,7 @@ def combine(video, audio, smoothness=50, stretch_audio=False, keep_non_ad=False,
                                                            video_file_types):
     # Default is to use the input video's extension for the output video
     if extension is None or extension in ["", "copy"]:
-      ext = os.path.splitext(os.path.split(video_file)[1])[1]
+      ext = os.path.splitext(video_file)[1]
     else:
       # add a dot to the extension if it's missing
       ext = ('' if extension[0] == '.' else '.') + extension
@@ -842,7 +866,7 @@ def combine(video, audio, smoothness=50, stretch_audio=False, keep_non_ad=False,
     output_filename = os.path.join(output_dir, output_filename)
     display(" " + output_filename, display_func)
     
-    if os.path.exists(output_filename):
+    if os.path.exists(output_filename) and os.path.getsize(output_filename) > 0:
       display("   output file already exists, skipping...", display_func)
       continue
     
@@ -929,7 +953,7 @@ def read_config_file(config_path):
               'no_pitch_correction':  config.getboolean('alignment', 'no_pitch_correction', fallback=False),
               'output_dir':           config.get('alignment', 'output_dir', fallback='videos_with_ad'),
               'alignment_dir':        config.get('alignment', 'alignment_dir', fallback='alignment_plots'),
-              'extension':            config.get('alignment', 'extension', fallback='mkv')}
+              'extension':            config.get('alignment', 'extension', fallback='copy')}
   if not config.has_section('alignment'):
     write_config_file(config_path, settings)
   return settings
@@ -939,8 +963,8 @@ def settings_gui(config_path):
   layout = [[sg.Text('Check tooltips (i.e. mouse-over text) for descriptions:')],
             [sg.Column([[sg.Text('extension:', size=(10, 1.2), pad=(1,5)),
                          sg.Input(default_text=str(settings['extension']), size=(8, 1.2), pad=(10,5), key='extension',
-                                  tooltip='File type of output video. When set to "copy", copies the ' + \
-                                          'file type of the corresponding input video. Default is "mkv".')]])],
+                                  tooltip='File type of output video (e.g. mkv). When set to "copy", copies the ' + \
+                                          'file type of the corresponding input video. Default is "copy".')]])],
             [sg.Column([[sg.Text('prepend:', size=(8, 1.2), pad=(1,5)),
                          sg.Input(default_text=str(settings['prepend']), size=(8, 1.2), pad=(10,5), key='prepend',
                                   tooltip='Output file name prepend text. Default is "ad_"')]])],
@@ -1167,9 +1191,9 @@ def command_line_interface():
                       help='Directory combined output media is saved to. Default is "videos_with_ad"')
   parser.add_argument("--alignment_dir", default="alignment_plots",
                       help='Directory alignment data and plots are saved to. Default is "alignment_plots"')
-  parser.add_argument("--extension", default="mkv",
-                      help='File type of output video. When set to "copy", copies the ' + \
-                           'file type of the corresponding input video. Default is "mkv".')
+  parser.add_argument("--extension", default="copy",
+                      help='File type of output video (e.g. mkv). When set to "copy", copies the ' + \
+                           'file type of the corresponding input video. Default is "copy".')
   args = parser.parse_args()
   
   combine(args.video, args.audio, args.smoothness, args.stretch_audio, args.keep_non_ad,
