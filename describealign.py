@@ -1204,6 +1204,7 @@ def command_line_interface():
 # allows the script to be run on its own, rather than through the package, for example:
 # python3 describealign.py video.mp4 audio_desc.mp3
 if __name__ == "__main__":
+  multiprocessing.freeze_support()
   command_line_interface()
 
 
