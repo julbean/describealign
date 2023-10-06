@@ -995,7 +995,7 @@ def settings_gui(config_path):
                                   tooltip='Boost (or quieten) description volume. Units are decibels (dB), so ' + \
                                           '-3 makes the describer about 2x quieter, while 3 makes them 2x louder. ' + \
                                           'Requires --stretch_audio to be set, otherwise does nothing.')]])],
-            [sg.Column([[sg.Text('ad_detect_sensitivity:', size=(21, 1.2), pad=(1.8,5)),
+            [sg.Column([[sg.Text('ad_detect_sensitivity:', size=(21, 1.2), pad=(2,5)),
                          sg.Input(default_text=str(settings['ad_detect_sensitivity']), size=(8, 1.2), pad=(10,5),
                                   key='ad_detect_sensitivity', disabled=not settings['stretch_audio'],
                                   tooltip='Audio description detection sensitivity ratio. Higher values make ' + \
