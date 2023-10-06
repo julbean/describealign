@@ -18,6 +18,7 @@ The combined media is saved in the folder "videos_with_ad" placed in the directo
 
 Note: media longer than an hour should only be processed on computers with at least 16 GB of RAM.
 
+
 ## Installation
 
 ### package method
@@ -97,6 +98,7 @@ Rate change of   -2.9% from  0:20:52.45 to  0:21:38.09 aligning with audio from 
 Rate change of   -0.1% from  0:21:38.09 to  0:22:15.77 aligning with audio from  0:24:30.92 to  0:25:08.63
 ```
 
+
 ## Advanced Usage
 
 ### directories
@@ -137,6 +139,18 @@ describealign can also be used as a python module:
 import describealign as dal
 dal.combine("ask_dad_trimmed.mp4", "ask_dad_moviesfortheblind_ep_01_trimmed.mp3")
 ```
+
+
+## Interesting Use Cases
+
+### dub alignment
+
+describealign is robust enough to align media with completely different dialogue, meaning it can align audio dubbed in a different language to the original video.
+
+### lossless video editing
+
+With default settings (i.e. --stretch_audio set to False), describealign doesn't re-encode either the video or audio streams. It aligns them by modifying the timestamps that video frames are shown at, which means no loss in quality. Basic video editing can be done by deleting or stretching segments of a video's sound in Audacity, then running describealign on the original video and the modified audio with --smoothness set low (e.g. 1). The video will be edited losslessly, but the audio can also be edited losslessly by exporting from Audacity as FLAC, then setting --extension to mkv or another container that supports FLAC.
+
 
 
 
