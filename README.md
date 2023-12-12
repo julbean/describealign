@@ -151,6 +151,9 @@ describealign is robust enough to align media with completely different dialogue
 
 With default settings (i.e. --stretch_audio set to False), describealign doesn't re-encode either the video or audio streams. It aligns them by modifying the timestamps that video frames are shown at, which means no loss in quality. Basic video editing can be done by deleting or stretching segments of a video's sound in Audacity, then running describealign on the original video and the modified audio with --smoothness set low (e.g. 1). The video will be edited losslessly, but the audio can also be edited losslessly by exporting from Audacity as FLAC, then setting --extension to mkv or another container that supports FLAC.
 
+### isolating descriptions for transcription
+
+By using a very high boost value (e.g. --boost 100), the output audio will only contain the audio descriptions and all other sounds will be silenced. Passing the output into [Whisper](https://github.com/openai/whisper) will then create a transcript of just the audio descriptions.
 
 
 
