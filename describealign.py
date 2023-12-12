@@ -906,7 +906,7 @@ def combine(video, audio, smoothness=50, stretch_audio=False, keep_non_ad=False,
       else:
         ad_timings = None
       if boost != 0:
-        video_arr = video_arr * (1. + (10**(boost / 10.)) * boost_sample_mask)
+        video_arr = video_arr * (1. + (10**(boost / 10.) - 1.) * boost_sample_mask)
         del boost_sample_mask
       
       # prevent peaking by rescaling to within +/- 16,382
