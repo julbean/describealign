@@ -772,8 +772,10 @@ def write_replaced_media_to_disk(output_filename, media_arr, video_file=None, au
     audio_desc_duration = max([float(stream['duration']) for stream in audio_desc_streams])
     original_video = ffmpeg.input(video_file, an=None, ss=start_key_frame)
     if os.path.splitext(output_filename)[1] == os.path.splitext(video_file)[1]:
+      # wav files don't have codecs compatible with most video containers, so we convert to aac
+      audio_codec = 'copy' if os.path.splitext(audio_desc_file)[1] != '.wav' else 'aac'
       write_command = ffmpeg.output(media_input, original_video, output_filename,
-                                    acodec='copy', vcodec='copy', scodec='copy',
+                                    acodec=audio_codec, vcodec='copy', scodec='copy',
                                     max_interleave_delta='0', loglevel='fatal',
                                     **{'bsf:v': 'setts=ts=\'' + setts_cmd + '\'',
                                        'bsf:s': 'setts=ts=\'' + setts_cmd + '\''}).overwrite_output()
