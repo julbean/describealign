@@ -752,7 +752,7 @@ def write_replaced_media_to_disk(output_filename, media_arr, video_file=None, au
     original_video = ffmpeg.input(video_file, an=None)
     media_input = ffmpeg.input('pipe:', format='s16le', acodec='pcm_s16le',
                                ac=2, ar=AUDIO_SAMPLE_RATE)
-    if video_file is None:
+    if video_file is None or os.path.splitext(output_filename)[1][1:] in AUDIO_EXTENSIONS:
       write_command = ffmpeg.output(media_input, output_filename, loglevel='fatal').overwrite_output()
     else:
       # "-max_interleave_delta 0" is sometimes necessary to fix an .mkv bug that freezes audio/video:
@@ -921,6 +921,8 @@ def combine(video, audio, smoothness=50, stretch_audio=False, keep_non_ad=False,
     else:
       if video_filetype == 1:
         raise RuntimeError("Argument --stretch_audio is required when both inputs are audio files.")
+      if os.path.splitext(output_filename)[1][1:] in AUDIO_EXTENSIONS:
+        raise RuntimeError("Argument --stretch_audio is required when output file extension is an audio filetype.")
       video_offset = np.diff(smooth_path[clips[0][0]])[0]
       start_key_frame = get_closest_key_frame_time(video_file, video_offset)
       setts_cmd = encode_fit_as_ffmpeg_expr(smooth_path, clips, video_offset, start_key_frame)
