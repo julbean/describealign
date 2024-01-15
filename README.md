@@ -51,7 +51,7 @@ The binary methods don't require installing python or messing about with PATH.
 
 Windows and Mac users can instead download and unzip the [latest release](https://github.com/julbean/describealign/releases/latest), then double click on describealign.exe to open the GUI.
 
-Note for Mac binary users: To open the binary, you'll need to ctrl+click (or right click) on the binary, then click "Open" and then click "Open" again in the window that pops up.  This minor annoyance is a result of my unwillingness to pay Apple $100 a year.  That also causes three other quirks with the Mac binary: a console window will pop up first and the GUI will only appear after about a minute, it saves outputs in the home folder (i.e. the one with your username) by default, so to change that you'll need to choose an output folder in describealign settings, and it also has to redownload ffmpeg each time it's opened.
+Note for Mac binary users: To open the binary, you'll need to ctrl+click (or right click) on the binary, then click "Open" and then click "Open" again in the window that pops up.  This minor annoyance is a result of my unwillingness to pay Apple $100 a year.  That also causes four other quirks with the Mac binary: a console window will pop up first and the GUI will only appear after about a minute, it saves outputs in the home folder (i.e. the one with your username) by default, so to change that you'll need to choose an output folder in describealign settings, settings can't be saved so have to be changed each time, and it also has to redownload ffmpeg each time it's opened.
 
 ### updating
 
