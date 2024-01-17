@@ -109,7 +109,7 @@ describealign can be given a directory of videos and a directory of audio files 
 
 ### stretch_audio (audio-to-video alignment)
 
-By default describealign stretches video to fit audio descriptions, but the inverse is also possible: stretching the audio description to fit the video with the "--stretch_audio" argument.
+By default describealign stretches video to fit audio descriptions, but the inverse is also possible: stretching the audio description to fit the video with the "--stretch_audio" argument.  This argument also keeps the video's original audio tracks, adding the audio description as the first track and setting it as the default audio.
 
 ### audio-to-audio
 
