@@ -749,18 +749,19 @@ def get_closest_key_frame_time(video_file, time):
 def write_replaced_media_to_disk(output_filename, media_arr, video_file=None, audio_desc_file=None,
                                  setts_cmd=None, start_key_frame=None):
   if audio_desc_file is None:
-    original_video = ffmpeg.input(video_file, an=None)
     media_input = ffmpeg.input('pipe:', format='s16le', acodec='pcm_s16le',
                                ac=2, ar=AUDIO_SAMPLE_RATE)
     if video_file is None or os.path.splitext(output_filename)[1][1:] in AUDIO_EXTENSIONS:
       write_command = ffmpeg.output(media_input, output_filename, loglevel='fatal').overwrite_output()
     else:
+      original_video = ffmpeg.input(video_file)
       # "-max_interleave_delta 0" is sometimes necessary to fix an .mkv bug that freezes audio/video:
       #   ffmpeg bug warning: [matroska @ 0000000002c814c0] Starting new cluster due to timestamp
       # more info about the bug and fix: https://reddit.com/r/ffmpeg/comments/efddfs/
       write_command = ffmpeg.output(media_input, original_video, output_filename,
-                                    acodec='aac', vcodec='copy', scodec='copy',
-                                    max_interleave_delta='0', loglevel='fatal').overwrite_output()
+                                    acodec='copy', vcodec='copy', scodec='copy',
+                                    max_interleave_delta='0', loglevel='fatal',
+                                    **{"c:a:0": "aac", "disposition:a:0": "default"}).overwrite_output()
     ffmpeg_caller = write_command.run_async(pipe_stdin=True, cmd=get_ffmpeg())
     ffmpeg_caller.stdin.write(media_arr.astype(np.int16).T.tobytes())
     ffmpeg_caller.stdin.close()
