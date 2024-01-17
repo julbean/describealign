@@ -23,7 +23,7 @@ Note: media longer than an hour should only be processed on computers with at le
 
 ### package method
 
-This script is compatible with Python versions 3.8 and up. Versions before that won't work (it relies on a recent update to Scipy's linprog).  On Mac specifically, Python must be one of 3.8, 3.9, or 3.10, as 3.11 and up are not supported by PySide2, which is needed for the Mac GUI.
+This script is compatible with Python versions 3.8 and up. Versions before that won't work (it relies on a recent update to Scipy's linprog).  On Intel-CPU Macs specifically, Python must be one of 3.8, 3.9, or 3.10, as 3.11 and up are not supported by PySide2, which is needed for the Mac GUI.  Non-Intel Macs will need to use the binary.
 
 describealign is available with pip:
 ```bash
@@ -39,7 +39,7 @@ Note: You may need to add the folder Python's compiled scripts (e.g. describeali
 
 ### script method
 
-Alternatively, the python script (describealign.py) can be downloaded from here and run directly (with Python 3.8+ on Windows/Linux or 3.8-3.10 on Mac) after installing the dependencies manually (requirements.txt):
+Alternatively, the python script (describealign.py) can be downloaded from here and run directly (with Python 3.8+ on Windows/Linux or 3.8-3.10 on Intel-CPU Mac) after installing the dependencies manually (requirements.txt):
 ```bash
 pip install -r requirements.txt
 python3 describealign.py
