@@ -74,8 +74,12 @@ import platform
 IS_RUNNING_WINDOWS = platform.system() == 'Windows'
 if IS_RUNNING_WINDOWS:
   import PySimpleGUIWx as sg
+  default_output_dir = 'videos_with_ad'
+  default_alignment_dir = 'alignment_plots'
 else:
   import PySimpleGUIQt as sg
+  default_output_dir = os.path.expanduser('~') + '/videos_with_ad'
+  default_alignment_dir = os.path.expanduser('~') + '/alignment_plots'
 
 def display(text, func=None):
   if func:
@@ -815,8 +819,8 @@ def is_ffmpeg_installed():
 # this is the main function of this script, it calls the other functions in order
 def combine(video, audio, smoothness=50, stretch_audio=False, keep_non_ad=False,
             boost=0, ad_detect_sensitivity=.6, boost_sensitivity=.4, yes=False,
-            prepend="ad_", no_pitch_correction=False, output_dir="videos_with_ad",
-            alignment_dir="alignment_plots", extension="copy", display_func=None):
+            prepend="ad_", no_pitch_correction=False, output_dir=default_output_dir,
+            alignment_dir=default_alignment_dir, extension="copy", display_func=None):
   video_files, video_file_types = get_sorted_filenames(video, VIDEO_EXTENSIONS, AUDIO_EXTENSIONS)
   
   if yes == False and sum(video_file_types) > 0:
@@ -956,8 +960,8 @@ def read_config_file(config_path):
               'boost_sensitivity':    config.getfloat('alignment', 'boost_sensitivity', fallback=.4),
               'prepend':              config.get('alignment', 'prepend', fallback='ad_'),
               'no_pitch_correction':  config.getboolean('alignment', 'no_pitch_correction', fallback=False),
-              'output_dir':           config.get('alignment', 'output_dir', fallback='videos_with_ad'),
-              'alignment_dir':        config.get('alignment', 'alignment_dir', fallback='alignment_plots'),
+              'output_dir':           config.get('alignment', 'output_dir', fallback=default_output_dir),
+              'alignment_dir':        config.get('alignment', 'alignment_dir', fallback=default_alignment_dir),
               'extension':            config.get('alignment', 'extension', fallback='copy')}
   if not config.has_section('alignment'):
     write_config_file(config_path, settings)
@@ -1192,9 +1196,9 @@ def command_line_interface():
   parser.add_argument('--no_pitch_correction', action='store_true',
                       help='Skips pitch correction step when stretching audio. ' + \
                            'Requires --stretch_audio to be set, otherwise does nothing.')
-  parser.add_argument("--output_dir", default="videos_with_ad",
+  parser.add_argument("--output_dir", default=default_output_dir,
                       help='Directory combined output media is saved to. Default is "videos_with_ad"')
-  parser.add_argument("--alignment_dir", default="alignment_plots",
+  parser.add_argument("--alignment_dir", default=default_alignment_dir,
                       help='Directory alignment data and plots are saved to. Default is "alignment_plots"')
   parser.add_argument("--extension", default="copy",
                       help='File type of output video (e.g. mkv). When set to "copy", copies the ' + \
