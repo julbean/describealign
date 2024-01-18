@@ -129,9 +129,14 @@ If an alignment isn't working perfectly, the ambitious user can try adjusting a 
 
 ### command line interface
 
-describalign can be run without the GUI by specifying input media as positional arguments:
+describealign can be run without the GUI by specifying input media as positional arguments:
 ```bash
 describealign video.mp4 audio_desc.mp3
+```
+
+Note for Mac binary users: The executable is inside the .app and can be run from Terminal with:
+```
+describealign.app/Contents/MacOS/describealign video.mp4 audio_desc.mp3
 ```
 
 ### module
