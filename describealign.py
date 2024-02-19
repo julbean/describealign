@@ -1,3 +1,19 @@
+# nuitka-project-if: {OS} != "Windows":
+#    nuitka-project: --enable-plugins=pyside2
+#
+# Compilation mode, standalone everywhere, except on macOS there app bundle
+# nuitka-project-if: {OS} == "Darwin":
+#    nuitka-project: --standalone
+#    nuitka-project: --macos-create-app-bundle
+# nuitka-project-else:
+#    nuitka-project: --onefile
+#
+# Debugging options, controlled via environment variable at compile time.
+# nuitka-project-if: os.getenv("DEBUG_COMPILATION", "no") == "yes":
+#     nuitka-project: --enable-console
+# nuitka-project-else:
+#     nuitka-project: --disable-console
+
 # combines videos with matching audio files (e.g. audio descriptions)
 # input: video or folder of videos and an audio file or folder of audio files
 # output: videos in a folder "videos_with_ad", with aligned segments of the audio replaced
@@ -158,7 +174,7 @@ def tokenize_audio(media_arr, rate=1):
                             (chunk_index + chunk_size - 1) * step_size_samples + window_size_samples)
     media_spec[chunk_index:chunk_index+chunk_size] = get_mfcc(media_arr[:,slice(*chunk_bounds_samples)])
   '''
-  # alternate python library's MFC implementation 
+  # alternate python library's MFC implementation
   import librosa
   media_spec = librosa.feature.mfcc(y=np.mean(media_arr, axis=0),
                                     sr=AUDIO_SAMPLE_RATE,
@@ -182,7 +198,7 @@ def tokenize_audio_dither(media_arr, slow_timings):
   # this is the continued fraction [0;1,N-2,1,1,1,...], where the trailing ones give phi
   fast_rate = 1. / (1 + 1. / (DITHER_PERIOD_STEPS - 2 + (np.sqrt(5) + 1) / 2.))
   fast_spec, fast_timings = tokenize_audio(media_arr, fast_rate)
-  
+
   # prevent drift in difficult to align segments (e.g. describer speaking or quiet/droning segments)
   # by approximately equalizing the number of tokens per unit time between dithered and undithered
   # the dithered audio will have ~(1 + 1 / DITHER_PERIOD_STEPS) times as many tokens, so
@@ -250,7 +266,7 @@ def rough_align(video_spec, audio_desc_spec, video_timings, audio_desc_timings):
                                                       GAP_EXTEND_COST * np.arange(video_spec.shape[0]-2)
     pred_matrix[1][i][2:][path_corrs_gap[i_mod][2:] > path_corrs_gap_no_col_skip] = 7
     path_corrs_gap[i_mod][2:] -= GAP_EXTEND_COST
-  
+
   # reconstruct optimal path by following predecessors backwards through the table
   end_node_layer = np.argmax([path_corrs_match[i_mod,-1],
                               path_corrs_gap[  i_mod,-1]])
@@ -267,7 +283,7 @@ def rough_align(video_spec, audio_desc_spec, video_timings, audio_desc_timings):
     if last_node[0] == 0:
       path.append(last_node[1:])
   path = path[::-1]
-  
+
   # determine how much information this node gives about the alignment
   # a larger double derivative means more precise timing information
   # sudden noises give more timing information than droning sounds
@@ -282,7 +298,7 @@ def rough_align(video_spec, audio_desc_spec, video_timings, audio_desc_timings):
              np.dot(audio_desc_spec[i+1],video_spec[j-1])
     info /= min(.2, TIMESTEP_SIZE_SECONDS)
     return info
-  
+
   # the quality of a node combines the correlation of its tokens
   # with how precisely the match is localized in time
   def get_match_quality(node):
@@ -290,16 +306,16 @@ def rough_align(video_spec, audio_desc_spec, video_timings, audio_desc_timings):
     token_correlation = np.dot(audio_desc_spec[node[0]],video_spec[node[1]])
     fisher_info = min(max(0, get_fisher_info(node)), 10)
     return max(0, token_correlation - MIN_CORR_FOR_TOKEN_MATCH) * (fisher_info / 5)
-  
+
   # filter out low match quality nodes from LCS path
   quals = [get_match_quality(node) for node in path]
   if len(quals) == 0 or max(quals) <= 0:
     raise RuntimeError("Rough alignment failed, are the input files mismatched?")
   path, quals = zip(*[(path, qual) for (path, qual) in zip(path, quals) if qual > 0])
-  
+
   # convert units of path nodes from timesteps to seconds
   path = [(audio_desc_timings[i], video_timings[j]) for (i,j) in path]
-  
+
   return path, quals
 
 # chunk path segments of similar slope into clips
@@ -328,7 +344,7 @@ def smooth_align(path, quals, smoothness):
   # perfectly matching audio has pre-transformation slope = 1
   # after this transformation, it instead has slope = 0
   rotated_path = [(x+y,-x+y) for x,y in path]
-  
+
   # stretch the x axis to make all slopes "cost" nearly the same
   # without this, small changes to the slope at slope = +/-1
   # cost sqrt(2) times as much as small changes at slope = 0
@@ -379,15 +395,15 @@ def smooth_align(path, quals, smoothness):
   if not fit.success:
     print(fit)
     raise RuntimeError("Smooth Alignment L1-Min Optimization Failed!")
-  
+
   # combine fit_err_pos and fit_err_neg
   fit_err = fit.x[:num_fit_points] - fit.x[num_fit_points:2*num_fit_points]
-  
+
   # subtract fit errors from nodes to retrieve the smooth fit's coordinates
   # also, unstretch x axis and rotate basis back, reversing the affine pre-processing
   smooth_path = [(((x / x_stretch_factor) - y) / 2.,
                   ((x / x_stretch_factor) + y) / 2.) for x,y in zip(x, y - fit_err)]
-  
+
   # clip off start/end of replacement audio if it doesn't match or isn't aligned
   # without this, describer intro/outro skips can cause mismatches at the start/end
   # the problem would be localized and just means audio might not match video at the start/end
@@ -415,9 +431,9 @@ def smooth_align(path, quals, smoothness):
   if is_synced_at_end:
     slope = (smooth_path[-1][1] - smooth_path[-2][1]) / (smooth_path[-1][0] - smooth_path[-2][0])
     smooth_path.append((10e10, 10e10 * slope))
-  
+
   clips, median_slope, slopes = chunk_path(smooth_path, tol=1e-7)
-  
+
   # assemble clips with slopes within the rate tolerance into runs
   runs, run = [], []
   bad_clips = []
@@ -431,7 +447,7 @@ def smooth_align(path, quals, smoothness):
     run.append(clip)
   if len(run) > 0:
     runs.append(run)
-  
+
   return smooth_path, runs, bad_clips, clips
 
 # if the start or end were marked as synced during smooth alignment then
@@ -497,7 +513,7 @@ def plot_alignment(plot_filename_no_ext, path, smooth_path, quals, runs, bad_cli
   plt.tight_layout()
   plt.savefig(plot_filename_no_ext + '.png', dpi=400)
   plt.clf()
-  
+
   with open(plot_filename_no_ext + '.txt', 'w') as file:
     rough_clips, median_slope, _ = chunk_path(smooth_path, tol=2e-2)
     video_offset = np.diff(smooth_path[rough_clips[0][0]])[0]
@@ -532,7 +548,7 @@ def replace_aligned_segments(video_arr, audio_desc_arr, smooth_path, runs, no_pi
                                           kind='quadratic', assume_sorted=True)
       interpolated_chunks.append(interp(chunk).astype(np.float32))
     return np.hstack(interpolated_chunks)
-  
+
   # construct a stretched audio description waveform using the quadratic interpolator
   def get_interped_segment(run, interp):
     segment = []
@@ -544,7 +560,7 @@ def replace_aligned_segments(video_arr, audio_desc_arr, smooth_path, runs, no_pi
       segment.append(interp(sample_points))
     segment = np.hstack(segment)
     return segment
-  
+
   x,y = zip(*smooth_path)
   for run in runs:
     run_length_seconds = y[run[-1][1]] - y[run[0][0]]
@@ -575,7 +591,7 @@ def detect_describer(video_arr, video_spec, video_spec_raw, video_timings,
   # retokenize the audio description, which has been stretched to match the video
   audio_desc_spec_raw, audio_timings = tokenize_audio(video_arr)
   audio_desc_spec = normalize_spec(audio_desc_spec_raw)
-  
+
   # avoid boosting or training on mismatched segments, like those close to skips
   # assumes matching segments all have the same, constant play rate
   # could be modified to handle a multi-modal distribution of rates
@@ -588,20 +604,20 @@ def detect_describer(video_arr, video_spec, video_spec_raw, video_timings,
   median_slope = np.median(slopes)
   aligned_mask =      np.abs(slopes - median_slope) < MAX_RATE_RATIO_DIFF_ALIGN
   well_aligned_mask = np.abs(slopes - median_slope) < MAX_RATE_RATIO_DIFF_BOOST
-  
+
   # first pass identification by assuming poorly matched tokens are describer speech
   # also assumes the describer doesn't speak very quietly
   corrs = np.sum(audio_desc_spec * video_spec, axis=-1)
   smooth_volume = nd.gaussian_filter(audio_desc_spec[:,0], sigma=1)
   audio_desc_loud = smooth_volume > np.percentile(smooth_volume, 30)
   speech_mask = (corrs < .2) * audio_desc_loud
-  
+
   # normalize spectrogram coefficients along time axis to prep for conversion to PDFs
   audio_desc_spec = normalize_spec(audio_desc_spec_raw, axes=(0,))
   audio_desc_spec = np.clip(audio_desc_spec / 6., -1, 1)
   video_spec = normalize_spec(video_spec_raw, axes=(0,))
   video_spec = np.clip(video_spec / 6., -1, 1)
-  
+
   # convert sampled features (e.g. spectrogram) to probability densities of each feature
   # when given a spectrogram, finds the distributions of the MFC coefficients
   def make_log_pdfs(arr):
@@ -620,10 +636,10 @@ def detect_describer(video_arr, video_spec, video_spec_raw, video_timings,
     log_pdfs = np.log(pdfs)
     bin_edges = np.histogram([], bins=num_bins, range=bin_range)[1]
     return log_pdfs, bin_edges
-  
+
   diff_spec = audio_desc_spec - video_spec
   diff_spec = np.clip(diff_spec, -1, 1)
-  
+
   # Naive Bayes classifier to roughly estimate whether each token is describer speech
   desc_log_pdfs, _ = make_log_pdfs(diff_spec[speech_mask * well_aligned_mask])
   nondesc_log_pdfs, bin_edges = make_log_pdfs(diff_spec[(~speech_mask) * well_aligned_mask])
@@ -635,7 +651,7 @@ def detect_describer(video_arr, video_spec, video_spec_raw, video_timings,
   relative_probs = np.sum(lratios, axis=1)
   relative_probs /= np.std(relative_probs)
   relative_probs -= np.mean(relative_probs)
-  
+
   # L1-Minimization to smoothly identify audio descriptions using a linear program
   # x is fit_err_pos, fit_err_neg, delta_fit_pos, delta_fit_neg
   # fit_err[i] = relative_probs[i] - y_fit[i]
@@ -667,23 +683,23 @@ def detect_describer(video_arr, video_spec, video_spec_raw, video_timings,
   if not fit.success:
     print(fit)
     raise RuntimeError("Describer Voice Detection L1-Min Optimization Failed!")
-  
+
   # combine fit_err_pos and fit_err_neg
   fit_err = fit.x[:num_fit_points] - fit.x[num_fit_points:2*num_fit_points]
-  
+
   # subtract fit errors from nodes to retrieve the smoothed fit
   smooth_desc_locations = relative_probs - fit_err
-  
+
   # hard threshold to classify each token as describer speech or not
   speech_mask = smooth_desc_locations > 1. - 1.5 * detect_sensitivity
   speech_mask *= aligned_mask
-  
+
   # a separate mask is created for describer volume boosting
   # as losing the describer's voice entirely is usually worse than it just being quiet
   # and imperfectly aligned segments may have descriptions, but shouldn't be boosted
   boost_mask = smooth_desc_locations > 1. - 1.5 * boost_sensitivity
   boost_mask *= well_aligned_mask
-  
+
   # convert a token classification into a mask that can be applied directly to samples
   # unlike the input, the output isn't a boolean array but an array of floats
   def token_mask_to_sample_mask(token_mask):
@@ -696,12 +712,12 @@ def detect_describer(video_arr, video_spec, video_spec_raw, video_timings,
       window_center = int(description_timing * AUDIO_SAMPLE_RATE)
       sample_mask[window_center-window_radius:window_center+window_radius+1] += bump
     return sample_mask
-  
+
   speech_sample_mask = token_mask_to_sample_mask(speech_mask)
   boost_sample_mask = token_mask_to_sample_mask(boost_mask)
   ad_timings = video_timings.copy()
   ad_timings[~speech_mask] = np.inf
-  
+
   return speech_sample_mask, boost_sample_mask, ad_timings
 
 # Convert piece-wise linear fit to ffmpeg expression for editing video frame timestamps
@@ -822,7 +838,7 @@ def combine(video, audio, smoothness=50, stretch_audio=False, keep_non_ad=False,
             prepend="ad_", no_pitch_correction=False, output_dir=default_output_dir,
             alignment_dir=default_alignment_dir, extension="copy", display_func=None):
   video_files, video_file_types = get_sorted_filenames(video, VIDEO_EXTENSIONS, AUDIO_EXTENSIONS)
-  
+
   if yes == False and sum(video_file_types) > 0:
     print("")
     print("One or more audio files found in video input. Was this intentional?")
@@ -835,11 +851,11 @@ def combine(video, audio, smoothness=50, stretch_audio=False, keep_non_ad=False,
                  f"The video path has {len(video_files)} files",
                  f"The audio path has {len(audio_desc_files)} files"]
     raise RuntimeError("\n".join(error_msg))
-  
+
   ensure_folders_exist([output_dir], display_func)
   if PLOT_ALIGNMENT_TO_FILE:
     ensure_folders_exist([alignment_dir], display_func)
-  
+
   display("", display_func)
   for (video_file, audio_desc_file) in zip(video_files, audio_desc_files):
     display(os.path.split(video_file)[1], display_func)
@@ -850,7 +866,7 @@ def combine(video, audio, smoothness=50, stretch_audio=False, keep_non_ad=False,
     print("If not, press ctrl+c to kill this script.")
     input("If they are correct, press Enter to continue...")
     print("")
-  
+
   # if ffmpeg isn't installed, install it
   if not is_ffmpeg_installed():
     display("Downloading and installing ffmpeg (media editor, 50 MB download)...", display_func)
@@ -858,9 +874,9 @@ def combine(video, audio, smoothness=50, stretch_audio=False, keep_non_ad=False,
     if not is_ffmpeg_installed():
       RuntimeError("Failed to install ffmpeg.")
     display("Successfully installed ffmpeg.", display_func)
-  
+
   display("Processing files:", display_func)
-  
+
   for (video_file, audio_desc_file, video_filetype) in zip(video_files, audio_desc_files,
                                                            video_file_types):
     # Default is to use the input video's extension for the output video
@@ -872,35 +888,35 @@ def combine(video, audio, smoothness=50, stretch_audio=False, keep_non_ad=False,
     output_filename = prepend + os.path.splitext(os.path.split(video_file)[1])[0] + ext
     output_filename = os.path.join(output_dir, output_filename)
     display(" " + output_filename, display_func)
-    
+
     if os.path.exists(output_filename) and os.path.getsize(output_filename) > 0:
       display("   output file already exists, skipping...", display_func)
       continue
-    
+
     video_arr = parse_audio_from_file(video_file)
     audio_desc_arr = parse_audio_from_file(audio_desc_file)
     video_spec_raw, video_timings = tokenize_audio(video_arr)
     video_spec = normalize_spec(video_spec_raw)
     audio_desc_spec_raw, audio_desc_timings = tokenize_audio_dither(audio_desc_arr, video_timings)
     audio_desc_spec = normalize_spec(audio_desc_spec_raw)
-    
+
     # rescale RMS intensity of audio to match video
     audio_desc_arr *= (np.std(video_arr) / np.std(audio_desc_arr))
-    
+
     path, quals = rough_align(video_spec, audio_desc_spec, video_timings, audio_desc_timings)
-    
+
     smooth_path, runs, bad_clips, clips = smooth_align(path, quals, smoothness)
-    
+
     cap_synced_end_points(smooth_path, video_arr, audio_desc_arr)
-    
+
     ad_timings = None
     if stretch_audio:
       if keep_non_ad:
         video_arr_original = video_arr.copy()
-      
+
       replace_aligned_segments(video_arr, audio_desc_arr, smooth_path, runs, no_pitch_correction)
       del audio_desc_arr
-      
+
       if keep_non_ad or boost != 0:
         outputs = detect_describer(video_arr, video_spec, video_spec_raw, video_timings,
                                    smooth_path, ad_detect_sensitivity, boost_sensitivity)
@@ -915,7 +931,7 @@ def combine(video, audio, smoothness=50, stretch_audio=False, keep_non_ad=False,
       if boost != 0:
         video_arr = video_arr * (1. + (10**(boost / 10.) - 1.) * boost_sample_mask)
         del boost_sample_mask
-      
+
       # prevent peaking by rescaling to within +/- 16,382
       video_arr *= (2**15 - 2.) / np.max(np.abs(video_arr))
       
@@ -933,7 +949,7 @@ def combine(video, audio, smoothness=50, stretch_audio=False, keep_non_ad=False,
       setts_cmd = encode_fit_as_ffmpeg_expr(smooth_path, clips, video_offset, start_key_frame)
       write_replaced_media_to_disk(output_filename, None, video_file, audio_desc_file,
                                    setts_cmd, start_key_frame)
-    
+
     del video_arr
     if PLOT_ALIGNMENT_TO_FILE:
       plot_filename_no_ext = os.path.join(alignment_dir, os.path.splitext(os.path.split(video_file)[1])[0])
@@ -986,7 +1002,7 @@ def settings_gui(config_path):
                                   tooltip='Directory alignment data and plots are saved to. Default is "alignment_plots"'),
                          sg.FolderBrowse(button_text="Browse Folder", key='alignment_browse')]], pad=(2,7))],
             [sg.Column([[sg.Text('smoothness:', size=(12, 1), pad=(1,5)),
-                         sg.Input(default_text=str(settings['smoothness']), size=(8, 1.2), pad=(10,5), key='smoothness', 
+                         sg.Input(default_text=str(settings['smoothness']), size=(8, 1.2), pad=(10,5), key='smoothness',
                                   tooltip='Lower values make the alignment more accurate when there are skips ' + \
                                           '(e.g. describer pauses), but also make it more likely to misalign. ' + \
                                           'Default is 50.')]])],
@@ -1061,7 +1077,7 @@ def combine_gui(video_files, audio_files, config_path):
                              disable_close=True, finalize=True)
   output_textbox.update('Combining media files:', append=True)
   print_queue = multiprocessing.Queue()
-  
+
   settings = read_config_file(config_path)
   settings.update({'display_func':print_queue.put, 'yes':True})
   proc = multiprocessing.Process(target=combine_print_exceptions,
@@ -1099,7 +1115,7 @@ def combine_gui(video_files, audio_files, config_path):
 def main_gui():
   config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.ini')
   sg.theme('Light Blue 2')
-  
+
   all_audio_file_types = [('All Audio File Types', '*.' + ';*.'.join(AUDIO_EXTENSIONS)),]
   all_video_file_types = [('All Video File Types', '*.' + ';*.'.join(VIDEO_EXTENSIONS)),]
   all_video_and_audio_file_types = [('All Video and Audio File Types',
@@ -1113,7 +1129,7 @@ def main_gui():
     file_fix = lambda file_types: file_types[:1] + [('|' + type[0], type[1]) for type in file_types[1:]]
     audio_file_types = file_fix(audio_file_types)
     video_and_audio_file_types = file_fix(video_and_audio_file_types)
-  
+
   layout = [[sg.Text('Select media files to combine:', size=(40, 2), font=('Arial', 20), pad=(3,15))],
             [sg.Column([[sg.Text('Video Input:', size=(11, 2), pad=(1,5)),
                          sg.Input(size=(35, 1.2), pad=(10,5), key='-VIDEO_FILES-',
@@ -1204,7 +1220,7 @@ def command_line_interface():
                       help='File type of output video (e.g. mkv). When set to "copy", copies the ' + \
                            'file type of the corresponding input video. Default is "copy".')
   args = parser.parse_args()
-  
+
   combine(args.video, args.audio, args.smoothness, args.stretch_audio, args.keep_non_ad,
           args.boost, args.ad_detect_sensitivity, args.boost_sensitivity, args.yes,
           args.prepend, args.no_pitch_correction, args.output_dir, args.alignment_dir,
