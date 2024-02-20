@@ -5,8 +5,9 @@
 # nuitka-project-if: {OS} == "Darwin":
 #    nuitka-project: --standalone
 #    nuitka-project: --macos-create-app-bundle
-# nuitka-project-else:
-#    nuitka-project: --onefile
+# Mac needs onefile too apparently, because pyside2 plugin requires it.
+# All other platforms need it to, so set it universally.
+# nuitka-project: --onefile
 #
 # Debugging options, controlled via environment variable at compile time.
 # nuitka-project-if: os.getenv("DEBUG_COMPILATION", "no") == "yes":
