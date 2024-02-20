@@ -7,3 +7,4 @@ scipy>=1.10.1
 pytsmod>=0.3.7
 PySimpleGUIWx==0.17.2; platform_system == 'Windows'
 PySimpleGUIQt>=0.35.0; platform_system != 'Windows'
+PySide2; platform_system != "Windows"
