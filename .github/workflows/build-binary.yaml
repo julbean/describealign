@@ -25,6 +25,7 @@ jobs:
       - name: Install Dependencies
         run: |
           pip install -r requirements.txt
+          pip install imageio
 
       - name: Build Executable
         uses: Nuitka/Nuitka-Action@v0.6
@@ -35,7 +36,11 @@ jobs:
           onefile: false
           standalone: false
 
-      - run: ls -R -lA build
+      - name: Collect Mac files
+        run: |
+          mv build/Info.plist build/Resources build/describealign.app/Contents
+          ls -l build
+        if: ${{ runner.os == 'macOS' }}
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4

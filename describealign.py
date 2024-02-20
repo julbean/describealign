@@ -15,6 +15,15 @@
 # nuitka-project-else:
 #     nuitka-project: --disable-console
 
+# Set app icon
+# nuitka-project-if: {OS} == "Windows":
+#   nuitka-project: --windows-icon-from-ico=describealign.png
+# nuitka-project-else:
+#   nuitka-project-if: {OS} == "Darwin":
+#     nuitka-project: --macos-app-icon=describealign.png
+#   nuitka-project-else:
+#     nuitka-project: --linux-icon=describealign.png
+
 # combines videos with matching audio files (e.g. audio descriptions)
 # input: video or folder of videos and an audio file or folder of audio files
 # output: videos in a folder "videos_with_ad", with aligned segments of the audio replaced
