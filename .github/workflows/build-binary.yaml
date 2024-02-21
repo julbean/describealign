@@ -27,6 +27,11 @@ jobs:
           pip install -r requirements.txt
           pip install imageio
 
+      - name: Set build vars
+        id: build-vars
+        run: |
+          echo "version=$(cat version)" >> "$GITHUB_OUTPUT"
+
       - name: Build Executable
         uses: Nuitka/Nuitka-Action@v0.6
         with:
@@ -35,6 +40,8 @@ jobs:
           enable-console: false
           onefile: false
           standalone: false
+          macos-app-version: "${{ steps.build-vars.outputs.version }}"
+          product-version: "${{ steps.build-vars.outputs.version }}"
 
       - name: Build artifacts
         if: ${{ runner.os == 'macOS' }}
