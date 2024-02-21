@@ -41,15 +41,12 @@ jobs:
         working-directory: build
         run: |
           mv Info.plist Resources *.app/Contents
-          chmod +x *.app/Contents/MacOS/*
-          xattr *.app/Contents/MacOS/*
-          tar cvf describealign.tar *.app
+          productbuild --component describealign.app /Applications --product ../Package/product.plist describealign.pkg
 
       - name: Build artifacts
         if: ${{ runner.os == 'Linux' }}
         working-directory: build
         run: |
-          chmod +x *.bin
           tar cvf describealign.tar *.bin
 
       - name: Upload Artifacts
@@ -59,4 +56,5 @@ jobs:
           path: |
             build/*.exe
             build/*.tar
+            build/*.pkg
           compression-level: 0
