@@ -33,13 +33,10 @@ jobs:
           echo "version=$(cat version)" >> "$GITHUB_OUTPUT"
 
       - name: Build Executable
-        uses: Nuitka/Nuitka-Action@v0.6
+        uses: Nuitka/Nuitka-Action@main
         with:
-          nuitka-version: main
+          nuitka-version: factory
           script-name: describealign.py
-          enable-console: false
-          onefile: false
-          standalone: false
           macos-app-version: "${{ steps.build-vars.outputs.version }}"
           product-version: "${{ steps.build-vars.outputs.version }}"
 
