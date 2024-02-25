@@ -8,26 +8,16 @@ authors = [{ name = "Julian Brown", email = "julbean@proton.me" }]
 description = "Combines videos with matching audio files (e.g. audio descriptions)"
 readme = "README.md"
 requires-python = ">=3.8"
-dependencies = [
-  "ffmpeg_python >= 0.2.0",
-  "static-ffmpeg >= 2.5",
-  "matplotlib >= 3.5.0",
-  "numpy >= 1.21.4",
-  "python_speech_features >= 0.6",
-  "scipy >= 1.10.1",
-  "pytsmod >= 0.3.7",
-  "PySimpleGUIWx==0.17.2 ; platform_system == 'Windows'",
-  "PySimpleGUIQt>=0.35.0 ; platform_system != 'Windows'",
-]
 classifiers = [
   "Programming Language :: Python :: 3",
   "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
   "Operating System :: OS Independent",
 ]
-dynamic = ["version"]
+dynamic = ["version", "dependencies"]
 
 [tool.setuptools.dynamic]
 version = { file = "version" }
+dependencies = { file = "requirements.txt" }
 
 [project.scripts]
 describealign = "describealign:command_line_interface"
