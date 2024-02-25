@@ -1,29 +1,3 @@
-# nuitka-project-if: {OS} != "Windows":
-#    nuitka-project: --enable-plugins=pyside2
-#
-# Compilation mode, standalone everywhere, except on macOS there app bundle
-# nuitka-project-if: {OS} == "Darwin":
-#    nuitka-project: --standalone
-#    nuitka-project: --macos-create-app-bundle
-# Mac needs onefile too apparently, because pyside2 plugin requires it.
-# All other platforms need it to, so set it universally.
-# nuitka-project: --onefile
-#
-# Debugging options, controlled via environment variable at compile time.
-# nuitka-project-if: os.getenv("DEBUG_COMPILATION", "no") == "yes":
-#     nuitka-project: --enable-console
-# nuitka-project-else:
-#     nuitka-project: --disable-console
-
-# Set app icon
-# nuitka-project-if: {OS} == "Windows":
-#   nuitka-project: --windows-icon-from-ico=describealign.png
-# nuitka-project-else:
-#   nuitka-project-if: {OS} == "Darwin":
-#     nuitka-project: --macos-app-icon=describealign.png
-#   nuitka-project-else:
-#     nuitka-project: --linux-icon=describealign.png
-
 # combines videos with matching audio files (e.g. audio descriptions)
 # input: video or folder of videos and an audio file or folder of audio files
 # output: videos in a folder "videos_with_ad", with aligned segments of the audio replaced
@@ -49,6 +23,34 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 '''
+
+# Nuitka build options:
+# nuitka-project-if: {OS} != "Windows":
+#    nuitka-project: --enable-plugins=pyside2
+#
+# Compilation mode, standalone everywhere, except on macOS there app bundle
+# nuitka-project-if: {OS} == "Darwin":
+#    nuitka-project: --standalone
+#    nuitka-project: --macos-create-app-bundle
+# Mac needs onefile too apparently, because pyside2 plugin requires it.
+# All other platforms need it to, so set it universally.
+# nuitka-project: --onefile
+#
+# Debugging options, controlled via environment variable at compile time.
+# nuitka-project-if: os.getenv("DEBUG_COMPILATION", "no") == "yes":
+#     nuitka-project: --enable-console
+# nuitka-project-else:
+#     nuitka-project: --disable-console
+
+# Set app icon
+# nuitka-project-if: {OS} == "Windows":
+#   nuitka-project: --windows-icon-from-ico=describealign.png
+# nuitka-project-else:
+#   nuitka-project-if: {OS} == "Darwin":
+#     nuitka-project: --macos-app-icon=describealign.png
+#   nuitka-project-else:
+#     nuitka-project: --linux-icon=describealign.png
+# End Nuitka build options
 
 VIDEO_EXTENSIONS = set(['mp4', 'mkv', 'avi', 'mov', 'webm', 'm4v', 'flv', 'vob'])
 AUDIO_EXTENSIONS = set(['mp3', 'm4a', 'opus', 'wav', 'aac', 'flac', 'ac3', 'mka'])
