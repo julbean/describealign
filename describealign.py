@@ -1128,10 +1128,11 @@ def main_gui():
   config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.ini')
   sg.theme('Light Blue 2')
 
-  all_audio_file_types = [('All Audio File Types', '*.' + ' *.'.join(AUDIO_EXTENSIONS)),]
-  all_video_file_types = [('All Video File Types', '*.' + ' *.'.join(VIDEO_EXTENSIONS)),]
+  filetype_sep = ';' if IS_RUNNING_WINDOWS else ' '
+  all_audio_file_types = [('All Audio File Types', '*.' + f'{filetype_sep}*.'.join(AUDIO_EXTENSIONS)),]
+  all_video_file_types = [('All Video File Types', '*.' + f'{filetype_sep}*.'.join(VIDEO_EXTENSIONS)),]
   all_video_and_audio_file_types = [('All Video and Audio File Types',
-                                     '*.' + ' *.'.join(VIDEO_EXTENSIONS | AUDIO_EXTENSIONS)),]
+                                     '*.' + f'{filetype_sep}*.'.join(VIDEO_EXTENSIONS | AUDIO_EXTENSIONS)),]
   audio_file_types = [(ext, "*." + ext) for ext in AUDIO_EXTENSIONS]
   video_and_audio_file_types = [(ext, "*." + ext) for ext in VIDEO_EXTENSIONS] + audio_file_types
   audio_file_types = all_audio_file_types + audio_file_types
