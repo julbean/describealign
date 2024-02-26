@@ -1,0 +1,64 @@
+name: Build
+on: push
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Check-out repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10" # Version range or exact version of a Python version to use, using SemVer's version range syntax
+          architecture: "x64" # optional x64 or x86. Defaults to x64 if not specified
+          cache: "pip"
+          cache-dependency-path: |
+            **/requirements*.txt
+
+      - name: Install Dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install imageio
+
+      - name: Set build vars
+        id: build-vars
+        run: |
+          echo "version=$(cat version)" >> "$GITHUB_OUTPUT"
+
+      - name: Build Executable
+        uses: Nuitka/Nuitka-Action@main
+        with:
+          nuitka-version: main
+          script-name: describealign.py
+          macos-app-version: "${{ steps.build-vars.outputs.version }}"
+          product-version: "${{ steps.build-vars.outputs.version }}"
+
+      - name: Build artifacts
+        if: ${{ runner.os == 'macOS' }}
+        working-directory: build
+        run: |
+          mv Info.plist Resources *.app/Contents
+          productbuild --component describealign.app /Applications --product ../Package/product.plist describealign.pkg
+
+      - name: Build artifacts
+        if: ${{ runner.os == 'Linux' }}
+        working-directory: build
+        run: |
+          tar cvf describealign.tar *.bin
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ runner.os }} Build
+          path: |
+            build/*.exe
+            build/*.tar
+            build/*.pkg
+          compression-level: 0

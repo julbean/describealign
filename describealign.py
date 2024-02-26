@@ -24,6 +24,34 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 '''
 
+# Nuitka build options:
+# nuitka-project-if: {OS} != "Windows":
+#    nuitka-project: --enable-plugins=pyside2
+#
+# Compilation mode, standalone everywhere, except on macOS there app bundle
+# nuitka-project-if: {OS} == "Darwin":
+#    nuitka-project: --standalone
+#    nuitka-project: --macos-create-app-bundle
+# Mac needs onefile too apparently, because pyside2 plugin requires it.
+# All other platforms need it to, so set it universally.
+# nuitka-project: --onefile
+#
+# Debugging options, controlled via environment variable at compile time.
+# nuitka-project-if: os.getenv("DEBUG_COMPILATION", "no") == "yes":
+#     nuitka-project: --enable-console
+# nuitka-project-else:
+#     nuitka-project: --disable-console
+
+# Set app icon
+# nuitka-project-if: {OS} == "Windows":
+#   nuitka-project: --windows-icon-from-ico=describealign.png
+# nuitka-project-else:
+#   nuitka-project-if: {OS} == "Darwin":
+#     nuitka-project: --macos-app-icon=describealign.png
+#   nuitka-project-else:
+#     nuitka-project: --linux-icon=describealign.png
+# End Nuitka build options
+
 VIDEO_EXTENSIONS = set(['mp4', 'mkv', 'avi', 'mov', 'webm', 'm4v', 'flv', 'vob'])
 AUDIO_EXTENSIONS = set(['mp3', 'm4a', 'opus', 'wav', 'aac', 'flac', 'ac3', 'mka'])
 PLOT_ALIGNMENT_TO_FILE = True
@@ -158,7 +186,7 @@ def tokenize_audio(media_arr, rate=1):
                             (chunk_index + chunk_size - 1) * step_size_samples + window_size_samples)
     media_spec[chunk_index:chunk_index+chunk_size] = get_mfcc(media_arr[:,slice(*chunk_bounds_samples)])
   '''
-  # alternate python library's MFC implementation 
+  # alternate python library's MFC implementation
   import librosa
   media_spec = librosa.feature.mfcc(y=np.mean(media_arr, axis=0),
                                     sr=AUDIO_SAMPLE_RATE,
@@ -1100,10 +1128,11 @@ def main_gui():
   config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.ini')
   sg.theme('Light Blue 2')
   
-  all_audio_file_types = [('All Audio File Types', '*.' + ';*.'.join(AUDIO_EXTENSIONS)),]
-  all_video_file_types = [('All Video File Types', '*.' + ';*.'.join(VIDEO_EXTENSIONS)),]
+  filetype_sep = ';' if IS_RUNNING_WINDOWS else ' '
+  all_audio_file_types = [('All Audio File Types', '*.' + f'{filetype_sep}*.'.join(AUDIO_EXTENSIONS)),]
+  all_video_file_types = [('All Video File Types', '*.' + f'{filetype_sep}*.'.join(VIDEO_EXTENSIONS)),]
   all_video_and_audio_file_types = [('All Video and Audio File Types',
-                                     '*.' + ';*.'.join(VIDEO_EXTENSIONS | AUDIO_EXTENSIONS)),]
+                                     '*.' + f'{filetype_sep}*.'.join(VIDEO_EXTENSIONS | AUDIO_EXTENSIONS)),]
   audio_file_types = [(ext, "*." + ext) for ext in AUDIO_EXTENSIONS]
   video_and_audio_file_types = [(ext, "*." + ext) for ext in VIDEO_EXTENSIONS] + audio_file_types
   audio_file_types = all_audio_file_types + audio_file_types
