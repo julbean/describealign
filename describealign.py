@@ -336,7 +336,7 @@ def smooth_align(path, quals, smoothness):
   # the small angle approximation means these slopes all cost roughly the same
   x_stretch_factor = 10.
   rotated_stretched_path = [(x_stretch_factor*x,y) for x,y in rotated_path]
-
+  
   # L1-Minimization to solve the alignment problem using a linear program
   # the absolute value functions needed for "absolute error" can be represented
   # in a linear program by splitting variables into positive and negative pieces
@@ -918,7 +918,7 @@ def combine(video, audio, smoothness=50, stretch_audio=False, keep_non_ad=False,
       
       # prevent peaking by rescaling to within +/- 16,382
       video_arr *= (2**15 - 2.) / np.max(np.abs(video_arr))
-    
+      
       if video_filetype == 0:
         write_replaced_media_to_disk(output_filename, video_arr, video_file)
       else:
