@@ -1014,7 +1014,7 @@ def settings_gui(config_path):
                                   tooltip='Directory alignment data and plots are saved to. Default is "alignment_plots"'),
                          sg.FolderBrowse(button_text="Browse Folder", key='alignment_browse')]], pad=(2,7))],
             [sg.Column([[sg.Text('smoothness:', size=(12, 1), pad=(1,5)),
-                         sg.Input(default_text=str(settings['smoothness']), size=(8, 1.2), pad=(10,5), key='smoothness', 
+                         sg.Input(default_text=str(settings['smoothness']), size=(8, 1.2), pad=(10,5), key='smoothness',
                                   tooltip='Lower values make the alignment more accurate when there are skips ' + \
                                           '(e.g. describer pauses), but also make it more likely to misalign. ' + \
                                           'Default is 50.')]])],
