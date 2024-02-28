@@ -10,6 +10,19 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
+      - name: Install Linux packages
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            libxcb-render-util0-dev \
+            libxcb-keysyms1-dev \
+            libxcb-shape0-dev \
+            libxcb-xinerama0-dev \
+            libxcb-icccm4-dev \
+            libxcb-image0-dev \
+            libxkbcommon-x11-dev \
+            libxcb-util-dev
+
       - name: Check-out repository
         uses: actions/checkout@v4
 
@@ -40,7 +53,7 @@ jobs:
             --windowed \
             -i describealign.png \
             describealign.py
-          ls -la
+          ls -la dist
 
       - name: Build artifacts
         if: ${{ runner.os == 'macOS' }}
