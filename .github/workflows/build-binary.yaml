@@ -55,7 +55,7 @@ jobs:
       - name: Build artifacts
         if: ${{ runner.os == 'macOS' }}
         id: build-artifacts-mac
-        working-directory: build
+        working-directory: dist
         run: |
           productbuild \
             --component describealign.app /Applications \
