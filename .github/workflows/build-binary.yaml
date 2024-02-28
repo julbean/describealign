@@ -40,6 +40,7 @@ jobs:
             --windowed \
             -i describealign.png \
             describealign.py
+          ls -la
 
       - name: Build artifacts
         if: ${{ runner.os == 'macOS' }}
@@ -48,11 +49,9 @@ jobs:
           productbuild \
             --component describealign.app /Applications \
             --product ../Package/product.plist \
-            --version '${{steps.build-vars.outputs.version}}'
+            --version '${{steps.build-vars.outputs.version}}' \
             describealign.pkg
   
-          ls -la dist
-
       - name: Build artifacts
         if: ${{ runner.os == 'Linux' }}
         working-directory: dist
