@@ -24,8 +24,9 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          pip install -r requirements.txt
-          pip install imageio
+          pip install -Ur requirements.txt
+          pip install -U pillow
+          pip install -U pyinstaller
 
       - name: Set build vars
         id: build-vars
@@ -33,23 +34,28 @@ jobs:
           echo "version=$(cat version)" >> "$GITHUB_OUTPUT"
 
       - name: Build Executable
-        uses: Nuitka/Nuitka-Action@main
-        with:
-          nuitka-version: main
-          script-name: describealign.py
-          macos-app-version: "${{ steps.build-vars.outputs.version }}"
-          product-version: "${{ steps.build-vars.outputs.version }}"
+        run: |
+          pyinstaller \
+            --onedir \
+            --windowed \
+            -i describealign.png \
+            describealign.py
 
       - name: Build artifacts
         if: ${{ runner.os == 'macOS' }}
         working-directory: build
         run: |
-          mv Info.plist Resources *.app/Contents
-          productbuild --component describealign.app /Applications --product ../Package/product.plist describealign.pkg
+          productbuild \
+            --component describealign.app /Applications \
+            --product ../Package/product.plist \
+            --version '${{steps.build-vars.outputs.version}}'
+            describealign.pkg
+  
+          ls -la dist
 
       - name: Build artifacts
         if: ${{ runner.os == 'Linux' }}
-        working-directory: build
+        working-directory: dist
         run: |
           tar cvf describealign.tar *.bin
 
@@ -58,7 +64,7 @@ jobs:
         with:
           name: ${{ runner.os }} Build
           path: |
-            build/*.exe
-            build/*.tar
-            build/*.pkg
+            dist/*.exe
+            dist/*.tar
+            dist/*.pkg
           compression-level: 0
