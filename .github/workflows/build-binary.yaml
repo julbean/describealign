@@ -54,11 +54,20 @@ jobs:
           tar cvf describealign.tar *.bin
 
       - name: Upload Artifacts
+        if: ${{ runner.os != 'Windows' }}
         uses: actions/upload-artifact@v4
         with:
           name: ${{ runner.os }} Build
           path: |
-            build/*.exe
             build/*.tar
             build/*.pkg
+          compression-level: 0
+      
+      - name: Upload Artifacts
+        if: ${{ runner.os == 'Windows' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ runner.os }} Build
+          path: |
+            build/*.dist/**/*
           compression-level: 0

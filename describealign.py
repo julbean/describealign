@@ -28,13 +28,15 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 # nuitka-project-if: {OS} != "Windows":
 #    nuitka-project: --enable-plugins=pyside2
 #
+# nuitka-project: --standalone
 # Compilation mode, standalone everywhere, except on macOS there app bundle
 # nuitka-project-if: {OS} == "Darwin":
-#    nuitka-project: --standalone
 #    nuitka-project: --macos-create-app-bundle
 # Mac needs onefile too apparently, because pyside2 plugin requires it.
-# All other platforms need it to, so set it universally.
-# nuitka-project: --onefile
+# All other platforms need it too, so set it universally.
+# nuitka-project-if: {OS} != "Windows":
+#   Except apparently Windows hates --onefile without codesigning.
+#   nuitka-project: --onefile
 #
 # Debugging options, controlled via environment variable at compile time.
 # nuitka-project-if: os.getenv("DEBUG_COMPILATION", "no") == "yes":
