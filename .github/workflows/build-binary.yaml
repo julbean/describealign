@@ -54,6 +54,7 @@ jobs:
 
       - name: Build artifacts
         if: ${{ runner.os == 'macOS' }}
+        id: build-artifacts-mac
         working-directory: build
         run: |
           productbuild \
@@ -61,19 +62,27 @@ jobs:
             --product ../Package/product.plist \
             --version '${{steps.build-vars.outputs.version}}' \
             describealign.pkg
-  
+
       - name: Build artifacts
         if: ${{ runner.os == 'Linux' }}
+        id: build-artifacts-linux
         working-directory: dist
         run: |
-          tar cvf describealign.tar *.bin
+          tar cvf describealign.tar describealign
+
+      - name: Build Artifacts
+        if: ${{runner.os == 'Windows'}}
+        working-directory: dist
+        run: |
+          mv describealign describealign.windows
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ runner.os }} Build
           path: |
-            dist/*.exe
-            dist/*.tar
             dist/*.pkg
+            dist/*.tar
+            dist/*.win
           compression-level: 0
+          if-no-files-found: error
