@@ -83,6 +83,6 @@ jobs:
           path: |
             dist/*.pkg
             dist/*.tar
-            dist/*.win
+            dist/*.windows
           compression-level: 0
           if-no-files-found: error
