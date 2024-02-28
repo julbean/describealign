@@ -84,8 +84,10 @@ import os
 import glob
 import itertools
 import datetime
+from pathlib import Path
 import numpy as np
 import ffmpeg
+import platformdirs
 import static_ffmpeg
 import python_speech_features as psf
 import scipy.signal
@@ -99,15 +101,14 @@ import traceback
 import multiprocessing
 import platform
 
+default_output_dir = platformdirs.user_videos_path() / 'videos_with_ad'
+default_alignment_dir = platformdirs.user_data_path('describealign') / 'alignment_plots'
+
 IS_RUNNING_WINDOWS = platform.system() == 'Windows'
 if IS_RUNNING_WINDOWS:
   import PySimpleGUIWx as sg
-  default_output_dir = 'videos_with_ad'
-  default_alignment_dir = 'alignment_plots'
 else:
   import PySimpleGUIQt as sg
-  default_output_dir = os.path.expanduser('~') + '/videos_with_ad'
-  default_alignment_dir = os.path.expanduser('~') + '/alignment_plots'
 
 def display(text, func=None):
   if func:
@@ -977,7 +978,7 @@ def write_config_file(config_path, settings):
   with open(config_path, 'w') as f:
     config.write(f)
 
-def read_config_file(config_path):
+def read_config_file(config_path: Path):
   config = configparser.ConfigParser()
   config.read(config_path)
   settings = {'smoothness':           config.getfloat('alignment', 'smoothness', fallback=50),
@@ -995,7 +996,7 @@ def read_config_file(config_path):
     write_config_file(config_path, settings)
   return settings
 
-def settings_gui(config_path):
+def settings_gui(config_path: Path):
   settings = read_config_file(config_path)
   layout = [[sg.Text('Check tooltips (i.e. mouse-over text) for descriptions:')],
             [sg.Column([[sg.Text('extension:', size=(10, 1.2), pad=(1,5)),
@@ -1125,7 +1126,7 @@ def combine_gui(video_files, audio_files, config_path):
   combine_window.close()
 
 def main_gui():
-  config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.ini')
+  config_path = platformdirs.user_config_path(appname='describealign', ensure_exists=True) / 'config.ini'
   sg.theme('Light Blue 2')
   
   filetype_sep = ';' if IS_RUNNING_WINDOWS else ' '
