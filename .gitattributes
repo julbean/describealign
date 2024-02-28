@@ -1,0 +1,6 @@
+# Git Attributes (https://git-scm.com/docs/gitattributes)
+# Default git attributes
+* text=auto
+
+# Overrides
+*.png -text
