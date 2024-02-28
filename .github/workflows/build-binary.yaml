@@ -38,23 +38,19 @@ jobs:
 
       - name: Install Dependencies
         run: |
+          pip install -U pip wheel
           pip install -Ur requirements.txt
           pip install -U pillow
           pip install -U pyinstaller
 
       - name: Set build vars
         id: build-vars
-        run: |
-          echo "version=$(cat version)" >> "$GITHUB_OUTPUT"
+        run: echo "version=$(cat version)" >> "$GITHUB_OUTPUT"
 
       - name: Build Executable
         run: |
-          pyinstaller \
-            --onedir \
-            --windowed \
-            -i describealign.png \
-            describealign.py
-          ls -la dist
+          pyinstaller --onedir --windowed -i describealign.png describealign.py
+          ls dist
 
       - name: Build artifacts
         if: ${{ runner.os == 'macOS' }}
