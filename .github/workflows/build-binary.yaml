@@ -58,7 +58,7 @@ jobs:
         working-directory: dist
         run: |
           productbuild \
-            --component describealign.app /Applications \
+            --component describealign.app \
             --product ../Package/product.plist \
             --version '${{steps.build-vars.outputs.version}}' \
             describealign.pkg
