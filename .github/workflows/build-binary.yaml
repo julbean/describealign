@@ -48,22 +48,23 @@ jobs:
 
       - name: Build Executable
         run: |
-          pyinstaller --onedir --windowed -i describealign.png describealign.py
+          pyinstaller describealign.spec
+        env:
+          APP_VERSION: ${{ steps.build-vars.outputs.version }}
 
       - name: Build artifacts
         if: ${{ runner.os == 'macOS' }}
         id: build-artifacts-mac
-        working-directory: dist
         run: |
           pkgbuild \
-            --scripts ../Package/scripts \
-            --component describealign.app \
+            --scripts Package/scripts \
+            --component dist/describealign.app \
             /tmp/describealign-component.pkg
           productbuild \
             --package /tmp/describealign-component.pkg \
-            --product ../Package/product.plist \
+            --product Package/product.plist \
             --version '${{steps.build-vars.outputs.version}}' \
-            describealign.pkg
+            dist/describealign.pkg
 
       - name: Build artifacts
         if: ${{ runner.os == 'Linux' }}
@@ -86,14 +87,5 @@ jobs:
             dist/*.pkg
             dist/*.tar
             dist/*.windows
-          compression-level: 0
-          if-no-files-found: error
-
-      - name: Upload specs
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ runner.os }} spec
-          path: |
-            *.spec
           compression-level: 0
           if-no-files-found: error
