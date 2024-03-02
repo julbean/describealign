@@ -5,7 +5,7 @@
 <!-- Home dir installs are still broken,
 	 it randomly decides to install in /Applications
 	 anyways, but with user perms and no user prompt -->
-	<key>home</key>
-	<true/>
+	<!-- <key>home</key>
+	<true/> -->
 </dict>
 </plist>

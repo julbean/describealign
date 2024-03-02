@@ -85,10 +85,12 @@ import glob
 import itertools
 import datetime
 from pathlib import Path
+import sys
 import numpy as np
 import ffmpeg
 import platformdirs
 import static_ffmpeg
+import static_ffmpeg.run
 import python_speech_features as psf
 import scipy.signal
 import scipy.optimize
@@ -1233,7 +1235,14 @@ def command_line_interface():
   parser.add_argument("--extension", default="copy",
                       help='File type of output video (e.g. mkv). When set to "copy", copies the ' + \
                            'file type of the corresponding input video. Default is "copy".')
+  parser.add_argument("--install-ffmpeg", action="store_true",
+                      help="Install the required ffmpeg binaries and then exit. This is meant to be" + \
+                           "run from a privileged installer process (e.g. OS X Installer)")
   args = parser.parse_args()
+  
+  if args.install_ffmpeg:
+    static_ffmpeg.run.get_or_fetch_platform_executables_else_raise()
+    sys.exit(0)
   
   combine(args.video, args.audio, args.smoothness, args.stretch_audio, args.keep_non_ad,
           args.boost, args.ad_detect_sensitivity, args.boost_sensitivity, args.yes,

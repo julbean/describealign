@@ -40,8 +40,7 @@ jobs:
         run: |
           pip install -U pip wheel
           pip install -Ur requirements.txt
-          pip install -U pillow
-          pip install -U pyinstaller
+          pip install -U pillow pyinstaller
 
       - name: Set build vars
         id: build-vars
@@ -50,15 +49,18 @@ jobs:
       - name: Build Executable
         run: |
           pyinstaller --onedir --windowed -i describealign.png describealign.py
-          ls dist
 
       - name: Build artifacts
         if: ${{ runner.os == 'macOS' }}
         id: build-artifacts-mac
         working-directory: dist
         run: |
-          productbuild \
+          pkgbuild \
+            --scripts ../Package/scripts \
             --component describealign.app \
+            /tmp/describealign-component.pkg
+          productbuild \
+            --package /tmp/describealign-component.pkg \
             --product ../Package/product.plist \
             --version '${{steps.build-vars.outputs.version}}' \
             describealign.pkg
@@ -84,5 +86,14 @@ jobs:
             dist/*.pkg
             dist/*.tar
             dist/*.windows
+          compression-level: 0
+          if-no-files-found: error
+
+      - name: Upload specs
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ runner.os }} spec
+          path: |
+            *.spec
           compression-level: 0
           if-no-files-found: error
