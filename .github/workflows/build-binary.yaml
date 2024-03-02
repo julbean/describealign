@@ -57,6 +57,7 @@ jobs:
         id: build-artifacts-mac
         run: |
           pkgbuild \
+            --install-location /Applications \
             --scripts Package/scripts \
             --component dist/describealign.app \
             /tmp/describealign-component.pkg
