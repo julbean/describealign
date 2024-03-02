@@ -1187,20 +1187,11 @@ def main_gui():
 # Entry point for command line interaction, for example:
 # > describealign video.mp4 audio_desc.mp3
 def command_line_interface():
-  # override command line argument parser's error handler to make it pause before exiting
-  # this allows users to see the error message when accidentally not running from command line
-  class ArgumentParser(argparse.ArgumentParser):
-    def error(self, message):
-      if 'required: video, audio' in message:
-        print('No input arguments detected, starting GUI...')
-        main_gui()
-        self.exit()
-      else:
-        self.exit(2, f'{self.prog}: error: {message}\n')
-  parser = ArgumentParser(description="Replaces a video's sound with an audio description.",
+  parser = argparse.ArgumentParser(
+                          description="Replaces a video's sound with an audio description.",
                           usage="describealign video_file.mp4 audio_file.mp3")
-  parser.add_argument("video", help='A video file or directory containing video files.')
-  parser.add_argument("audio", help='An audio file or directory containing audio files.')
+  parser.add_argument("video", help='A video file or directory containing video files.', default=None)
+  parser.add_argument("audio", help='An audio file or directory containing audio files.', default=None)
   parser.add_argument('--smoothness', type=float, default=50,
                       help='Lower values make the alignment more accurate when there are skips ' + \
                            '(e.g. describer pauses), but also make it more likely to misalign. ' + \
@@ -1242,12 +1233,13 @@ def command_line_interface():
   
   if args.install_ffmpeg:
     static_ffmpeg.run.get_or_fetch_platform_executables_else_raise()
-    sys.exit(0)
-  
-  combine(args.video, args.audio, args.smoothness, args.stretch_audio, args.keep_non_ad,
-          args.boost, args.ad_detect_sensitivity, args.boost_sensitivity, args.yes,
-          args.prepend, args.no_pitch_correction, args.output_dir, args.alignment_dir,
-          args.extension)
+  elif args.video or args.audio:
+    combine(args.video, args.audio, args.smoothness, args.stretch_audio, args.keep_non_ad,
+            args.boost, args.ad_detect_sensitivity, args.boost_sensitivity, args.yes,
+            args.prepend, args.no_pitch_correction, args.output_dir, args.alignment_dir,
+            args.extension)
+  else:
+    main_gui()
 
 # allows the script to be run on its own, rather than through the package, for example:
 # python3 describealign.py video.mp4 audio_desc.mp3
