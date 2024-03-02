@@ -95,6 +95,7 @@ import scipy.optimize
 import scipy.interpolate
 import scipy.ndimage as nd
 import scipy.sparse
+import stat
 import pytsmod
 import configparser
 import traceback
@@ -1235,7 +1236,8 @@ def command_line_interface():
   args = parser.parse_args()
   
   if args.install_ffmpeg:
-    static_ffmpeg.run.get_or_fetch_platform_executables_else_raise()
+    # Make sure the file is world executable
+    os.chmod(get_ffmpeg(), 0o755)
   elif args.video or args.audio:
     combine(args.video, args.audio, args.smoothness, args.stretch_audio, args.keep_non_ad,
             args.boost, args.ad_detect_sensitivity, args.boost_sensitivity, args.yes,
