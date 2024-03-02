@@ -1187,6 +1187,11 @@ def main_gui():
 # Entry point for command line interaction, for example:
 # > describealign video.mp4 audio_desc.mp3
 def command_line_interface():
+  if len(sys.argv) < 2:
+    # No args, run gui
+    main_gui()
+    sys.exit(0)
+  
   parser = argparse.ArgumentParser(
                           description="Replaces a video's sound with an audio description.",
                           usage="describealign video_file.mp4 audio_file.mp3")
@@ -1239,7 +1244,7 @@ def command_line_interface():
             args.prepend, args.no_pitch_correction, args.output_dir, args.alignment_dir,
             args.extension)
   else:
-    main_gui()
+    parser.print_usage()
 
 # allows the script to be run on its own, rather than through the package, for example:
 # python3 describealign.py video.mp4 audio_desc.mp3
