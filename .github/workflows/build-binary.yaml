@@ -72,14 +72,13 @@ jobs:
         id: build-artifacts-linux
         working-directory: dist
         run: |
-          tar cvf describealign.tar describealign
+          tar cvzf describealign.tar.gz describealign
 
       - name: Build Artifacts
         if: ${{runner.os == 'Windows'}}
         working-directory: dist
         run: |
-          mkdir windows
-          mv describealign windows/describealign
+          zip -r describealign.zip describealign
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
@@ -87,6 +86,6 @@ jobs:
           name: ${{ runner.os }} Build
           path: |
             dist/*.pkg
-            dist/*.tar
-            dist/windows/describealign/*
+            dist/*.tar.gz
+            dist/*.zip
           if-no-files-found: error
