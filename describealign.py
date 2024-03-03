@@ -80,6 +80,8 @@ CATCHUP_RATE = 5
 if PLOT_ALIGNMENT_TO_FILE:
   import matplotlib.pyplot as plt
 import argparse
+from contextlib import redirect_stderr, redirect_stdout
+import io
 import os
 import glob
 import itertools
@@ -95,7 +97,6 @@ import scipy.optimize
 import scipy.interpolate
 import scipy.ndimage as nd
 import scipy.sparse
-import stat
 import pytsmod
 import configparser
 import traceback
@@ -1076,10 +1077,21 @@ def settings_gui(config_path: Path):
       break
   settings_window.close()
 
+class QueueWriter(io.TextIOBase):
+  def __init__(self, queue) -> None:
+    super().__init__()
+    self._queue = queue
+    
+  def write(self, s: str) -> int:
+    self._queue.put(s)
+    return len(s)
+
 def combine_print_exceptions(print_queue, *args, **kwargs):
+  writer = QueueWriter(print_queue)
   try:
-    combine(*args, **kwargs)
-  except:
+    with redirect_stdout(writer), redirect_stderr(writer):
+      combine(*args, **kwargs)
+  except Exception:
     print_queue.put(traceback.format_exc())
     # raise
 
