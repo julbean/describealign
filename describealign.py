@@ -1238,6 +1238,7 @@ def command_line_interface():
   if args.install_ffmpeg:
     # Make sure the file is world executable
     os.chmod(get_ffmpeg(), 0o755)
+    os.chmod(get_ffprobe(), 0o755)
   elif args.video or args.audio:
     combine(args.video, args.audio, args.smoothness, args.stretch_audio, args.keep_non_ad,
             args.boost, args.ad_detect_sensitivity, args.boost_sensitivity, args.yes,
