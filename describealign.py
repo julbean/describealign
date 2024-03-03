@@ -1088,12 +1088,11 @@ class QueueWriter(io.TextIOBase):
 
 def combine_print_exceptions(print_queue, *args, **kwargs):
   writer = QueueWriter(print_queue)
-  try:
-    with redirect_stdout(writer), redirect_stderr(writer):
-      combine(*args, **kwargs)
-  except Exception:
-    print_queue.put(traceback.format_exc())
-    # raise
+  with redirect_stdout(writer), redirect_stderr(writer):
+    try:
+        combine(*args, **kwargs)
+    except Exception:
+      traceback.print_exc()
 
 def combine_gui(video_files, audio_files, config_path):
   output_textbox = sg.Multiline(size=(80,30), key='-OUTPUT-')
@@ -1105,7 +1104,7 @@ def combine_gui(video_files, audio_files, config_path):
   print_queue = multiprocessing.Queue()
   
   settings = read_config_file(config_path)
-  settings.update({'display_func':print_queue.put, 'yes':True})
+  settings.update({'yes':True})
   proc = multiprocessing.Process(target=combine_print_exceptions,
                                  args=(print_queue, video_files, audio_files),
                                  kwargs=settings, daemon=True)
@@ -1117,7 +1116,7 @@ def combine_gui(video_files, audio_files, config_path):
     if not print_queue.empty():
       if IS_RUNNING_WINDOWS:
         cursor_position = output_textbox.WxTextCtrl.GetInsertionPoint()
-      output_textbox.update(f'\n {print_queue.get()}', append=True)
+      output_textbox.update(print_queue.get(), append=True)
       if IS_RUNNING_WINDOWS:
         output_textbox.WxTextCtrl.SetInsertionPoint(cursor_position)
     event, values = combine_window.read(timeout=100)
