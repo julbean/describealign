@@ -124,7 +124,7 @@ def throw_runtime_error(text, func=None):
 def ensure_folders_exist(dirs, display_func=None):
   for dir in dirs:
     if not os.path.isdir(dir):
-      display("Directory not found, creating it: " + dir, display_func)
+      display(f"Directory not found, creating it: {dir}", display_func)
       os.makedirs(dir)
 
 def get_sorted_filenames(path, extensions, alt_extensions=set([])):
@@ -812,8 +812,8 @@ def write_replaced_media_to_disk(output_filename, media_arr, video_file=None, au
       write_command = ffmpeg.output(media_input, original_video, output_filename,
                                     acodec=audio_codec, vcodec='copy', scodec='copy',
                                     max_interleave_delta='0', loglevel='fatal',
-                                    **{'bsf:v': 'setts=ts=\'' + setts_cmd + '\'',
-                                       'bsf:s': 'setts=ts=\'' + setts_cmd + '\''}).overwrite_output()
+                                    **{'bsf:v': f'setts=ts=\'{setts_cmd}\'',
+                                       'bsf:s': f'setts=ts=\'{setts_cmd}\''}).overwrite_output()
       write_command.run(cmd=get_ffmpeg())
     else:
       # work around for bug that sometimes breaks setts when output and input formats differ
@@ -826,8 +826,8 @@ def write_replaced_media_to_disk(output_filename, media_arr, video_file=None, au
       pipe_input = ffmpeg.input('pipe:', format=format, thread_queue_size='512')
       write_command2 = ffmpeg.output(media_input, pipe_input, output_filename, c='copy',
                                      max_interleave_delta='0', loglevel='fatal', vsync='passthrough',
-                                     **{'bsf:v': 'setts=ts=\'' + setts_cmd + '\'',
-                                        'bsf:s': 'setts=ts=\'' + setts_cmd + '\''}).overwrite_output()
+                                     **{'bsf:v': f'setts=ts=\'{setts_cmd}\'',
+                                        'bsf:s': f'setts=ts=\'{setts_cmd}\''}).overwrite_output()
       ffmpeg_caller2 = write_command2.run_async(pipe_stdin=True, cmd=get_ffmpeg())
       while True:
         in_bytes = ffmpeg_caller.stdout.read(100000)
@@ -901,7 +901,7 @@ def combine(video, audio, smoothness=50, stretch_audio=False, keep_non_ad=False,
       ext = ('' if extension[0] == '.' else '.') + extension
     output_filename = prepend + os.path.splitext(os.path.split(video_file)[1])[0] + ext
     output_filename = os.path.join(output_dir, output_filename)
-    display(" " + output_filename, display_func)
+    display(f" {output_filename}", display_func)
     
     if os.path.exists(output_filename) and os.path.getsize(output_filename) > 0:
       display("   output file already exists, skipping...", display_func)
@@ -1105,7 +1105,7 @@ def combine_gui(video_files, audio_files, config_path):
     if not print_queue.empty():
       if IS_RUNNING_WINDOWS:
         cursor_position = output_textbox.WxTextCtrl.GetInsertionPoint()
-      output_textbox.update('\n' + print_queue.get(), append=True)
+      output_textbox.update(f'\n {print_queue.get()}', append=True)
       if IS_RUNNING_WINDOWS:
         output_textbox.WxTextCtrl.SetInsertionPoint(cursor_position)
     event, values = combine_window.read(timeout=100)
@@ -1135,13 +1135,13 @@ def main_gui():
   all_video_file_types = [('All Video File Types', '*.' + f'{filetype_sep}*.'.join(VIDEO_EXTENSIONS)),]
   all_video_and_audio_file_types = [('All Video and Audio File Types',
                                      '*.' + f'{filetype_sep}*.'.join(VIDEO_EXTENSIONS | AUDIO_EXTENSIONS)),]
-  audio_file_types = [(ext, "*." + ext) for ext in AUDIO_EXTENSIONS]
-  video_and_audio_file_types = [(ext, "*." + ext) for ext in VIDEO_EXTENSIONS] + audio_file_types
+  audio_file_types = [(ext, f"*.{ext}") for ext in AUDIO_EXTENSIONS]
+  video_and_audio_file_types = [(ext, f"*.{ext}") for ext in VIDEO_EXTENSIONS] + audio_file_types
   audio_file_types = all_audio_file_types + audio_file_types
   video_and_audio_file_types = all_video_file_types + all_video_and_audio_file_types + video_and_audio_file_types
   # work around bug in PySimpleGUIWx's convert_tkinter_filetypes_to_wx function
   if IS_RUNNING_WINDOWS:
-    file_fix = lambda file_types: file_types[:1] + [('|' + type[0], type[1]) for type in file_types[1:]]
+    file_fix = lambda file_types: file_types[:1] + [(f'|{type[0]}', type[1]) for type in file_types[1:]]
     audio_file_types = file_fix(audio_file_types)
     video_and_audio_file_types = file_fix(video_and_audio_file_types)
   
