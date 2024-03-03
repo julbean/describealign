@@ -78,7 +78,8 @@ jobs:
         if: ${{runner.os == 'Windows'}}
         working-directory: dist
         run: |
-          mv describealign describealign.windows
+          mkdir windows
+          mv describealign windows/describealign
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
@@ -87,6 +88,5 @@ jobs:
           path: |
             dist/*.pkg
             dist/*.tar
-            dist/*.windows
-          compression-level: 0
+            dist/windows/describealign/*
           if-no-files-found: error
