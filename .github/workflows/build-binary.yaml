@@ -74,12 +74,14 @@ jobs:
         run: |
           tar cvzf describealign.tar.gz describealign
 
-      - name: Build Artifacts
-        if: ${{runner.os == 'Windows'}}
-        working-directory: dist
-        run: |
-          zip -r describealign.zip describealign
-
+      - name: Archive Release
+        uses: thedoctor0/zip-release@0.7.5
+        with:
+          type: 'zip'
+          directory: dist
+          path: dist/describealign
+          filename: 'describealign.zip'
+    
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
