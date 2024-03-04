@@ -1109,8 +1109,27 @@ def combine_gui(video_files, audio_files, config_path):
       break
   combine_window.close()
 
+def migrate_config(old_path: Path, new_path: Path) -> None:
+  """
+  Migrate configuration from old location.
+  
+  Only runs if the old_path exists but new_path does not
+  """
+  if new_path.exists() or not old_path.exists():
+    return
+  
+  old_data = old_path.read_text(encoding='utf-8')
+  new_path.write_text(old_data, encoding='utf-8')
+  print(f"Configuration migrated to {new_path}")
+
 def main_gui():
   config_path = platformdirs.user_config_path(appname='describealign', ensure_exists=True) / 'config.ini'
+  old_config = Path(__file__).resolve().parent / 'config.ini'
+  try:
+    migrate_config(old_config, config_path)
+  except OSError:
+    print(f"Error migrating old config:", *traceback.format_exception_only())
+  
   sg.theme('Light Blue 2')
   
   filetype_sep = ';' if IS_RUNNING_WINDOWS else ' '
