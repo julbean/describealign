@@ -1191,6 +1191,7 @@ def main_gui():
 def command_line_interface():
   if len(sys.argv) < 2:
     # No args, run gui
+    print('No input arguments detected, starting GUI...')
     main_gui()
     sys.exit(0)
   
