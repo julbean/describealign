@@ -1124,8 +1124,8 @@ def migrate_config(old_path: Path, new_path: Path) -> None:
   print(f"Configuration migrated to {new_path}")
   try:
     old_path.unlink()
-  except OSError:
-    print("Failed to remove old config:", *traceback.format_exception_only())
+  except OSError as exc:
+    print("Failed to remove old config:", *traceback.format_exception_only(exc))
   else:
     print("Successfully removed old config file.")
 
@@ -1134,8 +1134,8 @@ def main_gui():
   old_config = Path(__file__).resolve().parent / 'config.ini'
   try:
     migrate_config(old_config, config_path)
-  except OSError:
-    print(f"Error migrating old config:", *traceback.format_exception_only())
+  except OSError as exc:
+    print(f"Error migrating old config:", *traceback.format_exception_only(exc))
     print(f"Old config left in place at {old_config}")
   
   sg.theme('Light Blue 2')
