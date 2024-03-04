@@ -75,14 +75,15 @@ import traceback
 import multiprocessing
 import platform
 
-default_output_dir = platformdirs.user_videos_path() / 'videos_with_ad'
-default_alignment_dir = platformdirs.user_data_path('describealign') / 'alignment_plots'
-
 IS_RUNNING_WINDOWS = platform.system() == 'Windows'
 if IS_RUNNING_WINDOWS:
   import PySimpleGUIWx as sg
+  default_output_dir = 'videos_with_ad'
+  default_alignment_dir = 'alignment_plots'
 else:
   import PySimpleGUIQt as sg
+  default_output_dir = os.path.expanduser('~') + '/videos_with_ad'
+  default_alignment_dir = os.path.expanduser('~') + '/alignment_plots'
 
 def display(text, func=None):
   if func:
