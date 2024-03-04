@@ -40,7 +40,7 @@ jobs:
         run: |
           pip install -U pip wheel
           pip install -Ur requirements.txt
-          pip install -U pillow pyinstaller
+          pip install -Ur build-requirements.txt
 
       - name: Set build vars
         id: build-vars
