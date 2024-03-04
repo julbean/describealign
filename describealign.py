@@ -1050,9 +1050,9 @@ def settings_gui(config_path: Path):
       break
   settings_window.close()
 
-class QueueWriter(io.TextIOBase):
+class QueueWriter(io.TextIOWrapper):
   def __init__(self, queue) -> None:
-    super().__init__()
+    super().__init__(buffer=io.BytesIO())
     self._queue = queue
     
   def write(self, s: str) -> int:
