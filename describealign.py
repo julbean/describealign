@@ -1122,6 +1122,12 @@ def migrate_config(old_path: Path, new_path: Path) -> None:
   old_data = old_path.read_text(encoding='utf-8')
   new_path.write_text(old_data, encoding='utf-8')
   print(f"Configuration migrated to {new_path}")
+  try:
+    old_path.unlink()
+  except OSError:
+    print("Failed to remove old config:", *traceback.format_exception_only())
+  else:
+    print("Successfully removed old config file.")
 
 def main_gui():
   config_path = platformdirs.user_config_path(appname='describealign', ensure_exists=True) / 'config.ini'
@@ -1130,6 +1136,7 @@ def main_gui():
     migrate_config(old_config, config_path)
   except OSError:
     print(f"Error migrating old config:", *traceback.format_exception_only())
+    print(f"Old config left in place at {old_config}")
   
   sg.theme('Light Blue 2')
   
