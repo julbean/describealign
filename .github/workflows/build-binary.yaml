@@ -10,6 +10,20 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
+      - name: Install Linux packages
+        if: ${{ runner.os == 'Linux' }}
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            libxcb-render-util0-dev \
+            libxcb-keysyms1-dev \
+            libxcb-shape0-dev \
+            libxcb-xinerama0-dev \
+            libxcb-icccm4-dev \
+            libxcb-image0-dev \
+            libxkbcommon-x11-dev \
+            libxcb-util-dev
+
       - name: Check-out repository
         uses: actions/checkout@v4
 
@@ -24,41 +38,57 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          pip install -r requirements.txt
-          pip install imageio
+          pip install -U pip wheel
+          pip install -Ur requirements.txt
+          pip install -Ur build-requirements.txt
 
       - name: Set build vars
         id: build-vars
-        run: |
-          echo "version=$(cat version)" >> "$GITHUB_OUTPUT"
+        run: echo "version=$(cat version)" >> "$GITHUB_OUTPUT"
 
       - name: Build Executable
-        uses: Nuitka/Nuitka-Action@main
-        with:
-          nuitka-version: main
-          script-name: describealign.py
-          macos-app-version: "${{ steps.build-vars.outputs.version }}"
-          product-version: "${{ steps.build-vars.outputs.version }}"
+        run: |
+          pyinstaller describealign.spec
+        env:
+          APP_VERSION: ${{ steps.build-vars.outputs.version }}
 
       - name: Build artifacts
         if: ${{ runner.os == 'macOS' }}
-        working-directory: build
+        id: build-artifacts-mac
         run: |
-          mv Info.plist Resources *.app/Contents
-          productbuild --component describealign.app /Applications --product ../Package/product.plist describealign.pkg
+          pkgbuild \
+            --install-location /Applications \
+            --scripts Package/scripts \
+            --component dist/describealign.app \
+            /tmp/describealign-component.pkg
+          productbuild \
+            --package /tmp/describealign-component.pkg \
+            --product Package/product.plist \
+            --version '${{steps.build-vars.outputs.version}}' \
+            dist/describealign.pkg
 
       - name: Build artifacts
         if: ${{ runner.os == 'Linux' }}
-        working-directory: build
+        id: build-artifacts-linux
+        working-directory: dist
         run: |
-          tar cvf describealign.tar *.bin
+          tar cvzf describealign.tar.gz describealign
 
+      - name: Archive Release
+        if: ${{ runner.os == 'Windows' }}
+        uses: thedoctor0/zip-release@0.7.5
+        with:
+          type: 'zip'
+          directory: dist
+          path: describealign
+          filename: 'describealign.zip'
+    
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ runner.os }} Build
           path: |
-            build/*.exe
-            build/*.tar
-            build/*.pkg
-          compression-level: 0
+            dist/*.pkg
+            dist/*.tar.gz
+            dist/*.zip
+          if-no-files-found: error

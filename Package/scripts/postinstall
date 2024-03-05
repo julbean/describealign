@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+exec "$DSTROOT/describealign.app/Contents/MacOS/describealign" --install-ffmpeg

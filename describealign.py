@@ -24,34 +24,6 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 '''
 
-# Nuitka build options:
-# nuitka-project-if: {OS} != "Windows":
-#    nuitka-project: --enable-plugins=pyside2
-#
-# Compilation mode, standalone everywhere, except on macOS there app bundle
-# nuitka-project-if: {OS} == "Darwin":
-#    nuitka-project: --standalone
-#    nuitka-project: --macos-create-app-bundle
-# Mac needs onefile too apparently, because pyside2 plugin requires it.
-# All other platforms need it to, so set it universally.
-# nuitka-project: --onefile
-#
-# Debugging options, controlled via environment variable at compile time.
-# nuitka-project-if: os.getenv("DEBUG_COMPILATION", "no") == "yes":
-#     nuitka-project: --enable-console
-# nuitka-project-else:
-#     nuitka-project: --disable-console
-
-# Set app icon
-# nuitka-project-if: {OS} == "Windows":
-#   nuitka-project: --windows-icon-from-ico=describealign.png
-# nuitka-project-else:
-#   nuitka-project-if: {OS} == "Darwin":
-#     nuitka-project: --macos-app-icon=describealign.png
-#   nuitka-project-else:
-#     nuitka-project: --linux-icon=describealign.png
-# End Nuitka build options
-
 VIDEO_EXTENSIONS = set(['mp4', 'mkv', 'avi', 'mov', 'webm', 'm4v', 'flv', 'vob'])
 AUDIO_EXTENSIONS = set(['mp3', 'm4a', 'opus', 'wav', 'aac', 'flac', 'ac3', 'mka'])
 PLOT_ALIGNMENT_TO_FILE = True
@@ -80,12 +52,16 @@ CATCHUP_RATE = 5
 if PLOT_ALIGNMENT_TO_FILE:
   import matplotlib.pyplot as plt
 import argparse
+from contextlib import redirect_stderr, redirect_stdout
+import io
 import os
 import glob
 import itertools
-import datetime
+from pathlib import Path
+import sys
 import numpy as np
 import ffmpeg
+import platformdirs
 import static_ffmpeg
 import python_speech_features as psf
 import scipy.signal
@@ -122,7 +98,7 @@ def throw_runtime_error(text, func=None):
 def ensure_folders_exist(dirs, display_func=None):
   for dir in dirs:
     if not os.path.isdir(dir):
-      display("Directory not found, creating it: " + dir, display_func)
+      display(f"Directory not found, creating it: {dir}", display_func)
       os.makedirs(dir)
 
 def get_sorted_filenames(path, extensions, alt_extensions=set([])):
@@ -810,8 +786,8 @@ def write_replaced_media_to_disk(output_filename, media_arr, video_file=None, au
       write_command = ffmpeg.output(media_input, original_video, output_filename,
                                     acodec=audio_codec, vcodec='copy', scodec='copy',
                                     max_interleave_delta='0', loglevel='fatal',
-                                    **{'bsf:v': 'setts=ts=\'' + setts_cmd + '\'',
-                                       'bsf:s': 'setts=ts=\'' + setts_cmd + '\''}).overwrite_output()
+                                    **{'bsf:v': f'setts=ts=\'{setts_cmd}\'',
+                                       'bsf:s': f'setts=ts=\'{setts_cmd}\''}).overwrite_output()
       write_command.run(cmd=get_ffmpeg())
     else:
       # work around for bug that sometimes breaks setts when output and input formats differ
@@ -824,8 +800,8 @@ def write_replaced_media_to_disk(output_filename, media_arr, video_file=None, au
       pipe_input = ffmpeg.input('pipe:', format=format, thread_queue_size='512')
       write_command2 = ffmpeg.output(media_input, pipe_input, output_filename, c='copy',
                                      max_interleave_delta='0', loglevel='fatal', vsync='passthrough',
-                                     **{'bsf:v': 'setts=ts=\'' + setts_cmd + '\'',
-                                        'bsf:s': 'setts=ts=\'' + setts_cmd + '\''}).overwrite_output()
+                                     **{'bsf:v': f'setts=ts=\'{setts_cmd}\'',
+                                        'bsf:s': f'setts=ts=\'{setts_cmd}\''}).overwrite_output()
       ffmpeg_caller2 = write_command2.run_async(pipe_stdin=True, cmd=get_ffmpeg())
       while True:
         in_bytes = ffmpeg_caller.stdout.read(100000)
@@ -899,7 +875,7 @@ def combine(video, audio, smoothness=50, stretch_audio=False, keep_non_ad=False,
       ext = ('' if extension[0] == '.' else '.') + extension
     output_filename = prepend + os.path.splitext(os.path.split(video_file)[1])[0] + ext
     output_filename = os.path.join(output_dir, output_filename)
-    display(" " + output_filename, display_func)
+    display(f" {output_filename}", display_func)
     
     if os.path.exists(output_filename) and os.path.getsize(output_filename) > 0:
       display("   output file already exists, skipping...", display_func)
@@ -977,7 +953,7 @@ def write_config_file(config_path, settings):
   with open(config_path, 'w') as f:
     config.write(f)
 
-def read_config_file(config_path):
+def read_config_file(config_path: Path):
   config = configparser.ConfigParser()
   config.read(config_path)
   settings = {'smoothness':           config.getfloat('alignment', 'smoothness', fallback=50),
@@ -995,7 +971,7 @@ def read_config_file(config_path):
     write_config_file(config_path, settings)
   return settings
 
-def settings_gui(config_path):
+def settings_gui(config_path: Path):
   settings = read_config_file(config_path)
   layout = [[sg.Text('Check tooltips (i.e. mouse-over text) for descriptions:')],
             [sg.Column([[sg.Text('extension:', size=(10, 1.2), pad=(1,5)),
@@ -1074,12 +1050,22 @@ def settings_gui(config_path):
       break
   settings_window.close()
 
+class QueueWriter(io.TextIOWrapper):
+  def __init__(self, queue) -> None:
+    super().__init__(buffer=io.BytesIO())
+    self._queue = queue
+    
+  def write(self, s: str) -> int:
+    self._queue.put(s)
+    return len(s)
+
 def combine_print_exceptions(print_queue, *args, **kwargs):
-  try:
-    combine(*args, **kwargs)
-  except:
-    print_queue.put(traceback.format_exc())
-    # raise
+  writer = QueueWriter(print_queue)
+  with redirect_stdout(writer), redirect_stderr(writer):
+    try:
+        combine(*args, **kwargs)
+    except Exception:
+      traceback.print_exc()
 
 def combine_gui(video_files, audio_files, config_path):
   output_textbox = sg.Multiline(size=(80,30), key='-OUTPUT-')
@@ -1091,7 +1077,7 @@ def combine_gui(video_files, audio_files, config_path):
   print_queue = multiprocessing.Queue()
   
   settings = read_config_file(config_path)
-  settings.update({'display_func':print_queue.put, 'yes':True})
+  settings.update({'yes':True})
   proc = multiprocessing.Process(target=combine_print_exceptions,
                                  args=(print_queue, video_files, audio_files),
                                  kwargs=settings, daemon=True)
@@ -1103,7 +1089,7 @@ def combine_gui(video_files, audio_files, config_path):
     if not print_queue.empty():
       if IS_RUNNING_WINDOWS:
         cursor_position = output_textbox.WxTextCtrl.GetInsertionPoint()
-      output_textbox.update('\n' + print_queue.get(), append=True)
+      output_textbox.update(print_queue.get(), append=True)
       if IS_RUNNING_WINDOWS:
         output_textbox.WxTextCtrl.SetInsertionPoint(cursor_position)
     event, values = combine_window.read(timeout=100)
@@ -1124,8 +1110,34 @@ def combine_gui(video_files, audio_files, config_path):
       break
   combine_window.close()
 
+def migrate_config(old_path: Path, new_path: Path) -> None:
+  """
+  Migrate configuration from old location.
+  
+  Only runs if the old_path exists but new_path does not
+  """
+  if new_path.exists() or not old_path.exists():
+    return
+  
+  old_data = old_path.read_text(encoding='utf-8')
+  new_path.write_text(old_data, encoding='utf-8')
+  print(f"Configuration migrated to {new_path}")
+  try:
+    old_path.unlink()
+  except OSError as exc:
+    print("Failed to remove old config:", *traceback.format_exception_only(exc))
+  else:
+    print("Successfully removed old config file.")
+
 def main_gui():
-  config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.ini')
+  config_path = platformdirs.user_config_path(appname='describealign', ensure_exists=True) / 'config.ini'
+  old_config = Path(__file__).resolve().parent / 'config.ini'
+  try:
+    migrate_config(old_config, config_path)
+  except OSError as exc:
+    print(f"Error migrating old config:", *traceback.format_exception_only(exc))
+    print(f"Old config left in place at {old_config}")
+  
   sg.theme('Light Blue 2')
   
   filetype_sep = ';' if IS_RUNNING_WINDOWS else ' '
@@ -1133,13 +1145,13 @@ def main_gui():
   all_video_file_types = [('All Video File Types', '*.' + f'{filetype_sep}*.'.join(VIDEO_EXTENSIONS)),]
   all_video_and_audio_file_types = [('All Video and Audio File Types',
                                      '*.' + f'{filetype_sep}*.'.join(VIDEO_EXTENSIONS | AUDIO_EXTENSIONS)),]
-  audio_file_types = [(ext, "*." + ext) for ext in AUDIO_EXTENSIONS]
-  video_and_audio_file_types = [(ext, "*." + ext) for ext in VIDEO_EXTENSIONS] + audio_file_types
+  audio_file_types = [(ext, f"*.{ext}") for ext in AUDIO_EXTENSIONS]
+  video_and_audio_file_types = [(ext, f"*.{ext}") for ext in VIDEO_EXTENSIONS] + audio_file_types
   audio_file_types = all_audio_file_types + audio_file_types
   video_and_audio_file_types = all_video_file_types + all_video_and_audio_file_types + video_and_audio_file_types
   # work around bug in PySimpleGUIWx's convert_tkinter_filetypes_to_wx function
   if IS_RUNNING_WINDOWS:
-    file_fix = lambda file_types: file_types[:1] + [('|' + type[0], type[1]) for type in file_types[1:]]
+    file_fix = lambda file_types: file_types[:1] + [(f'|{type[0]}', type[1]) for type in file_types[1:]]
     audio_file_types = file_fix(audio_file_types)
     video_and_audio_file_types = file_fix(video_and_audio_file_types)
   
@@ -1184,20 +1196,17 @@ def main_gui():
 # Entry point for command line interaction, for example:
 # > describealign video.mp4 audio_desc.mp3
 def command_line_interface():
-  # override command line argument parser's error handler to make it pause before exiting
-  # this allows users to see the error message when accidentally not running from command line
-  class ArgumentParser(argparse.ArgumentParser):
-    def error(self, message):
-      if 'required: video, audio' in message:
-        print('No input arguments detected, starting GUI...')
-        main_gui()
-        self.exit()
-      else:
-        self.exit(2, f'{self.prog}: error: {message}\n')
-  parser = ArgumentParser(description="Replaces a video's sound with an audio description.",
+  if len(sys.argv) < 2:
+    # No args, run gui
+    print('No input arguments detected, starting GUI...')
+    main_gui()
+    sys.exit(0)
+  
+  parser = argparse.ArgumentParser(
+                          description="Replaces a video's sound with an audio description.",
                           usage="describealign video_file.mp4 audio_file.mp3")
-  parser.add_argument("video", help='A video file or directory containing video files.')
-  parser.add_argument("audio", help='An audio file or directory containing audio files.')
+  parser.add_argument("video", help='A video file or directory containing video files.', nargs='?', default=None)
+  parser.add_argument("audio", help='An audio file or directory containing audio files.', nargs='?', default=None)
   parser.add_argument('--smoothness', type=float, default=50,
                       help='Lower values make the alignment more accurate when there are skips ' + \
                            '(e.g. describer pauses), but also make it more likely to misalign. ' + \
@@ -1232,12 +1241,22 @@ def command_line_interface():
   parser.add_argument("--extension", default="copy",
                       help='File type of output video (e.g. mkv). When set to "copy", copies the ' + \
                            'file type of the corresponding input video. Default is "copy".')
+  parser.add_argument("--install-ffmpeg", action="store_true",
+                      help="Install the required ffmpeg binaries and then exit. This is meant to be" + \
+                           "run from a privileged installer process (e.g. OS X Installer)")
   args = parser.parse_args()
   
-  combine(args.video, args.audio, args.smoothness, args.stretch_audio, args.keep_non_ad,
-          args.boost, args.ad_detect_sensitivity, args.boost_sensitivity, args.yes,
-          args.prepend, args.no_pitch_correction, args.output_dir, args.alignment_dir,
-          args.extension)
+  if args.install_ffmpeg:
+    # Make sure the file is world executable
+    os.chmod(get_ffmpeg(), 0o755)
+    os.chmod(get_ffprobe(), 0o755)
+  elif args.video or args.audio:
+    combine(args.video, args.audio, args.smoothness, args.stretch_audio, args.keep_non_ad,
+            args.boost, args.ad_detect_sensitivity, args.boost_sensitivity, args.yes,
+            args.prepend, args.no_pitch_correction, args.output_dir, args.alignment_dir,
+            args.extension)
+  else:
+    parser.print_usage()
 
 # allows the script to be run on its own, rather than through the package, for example:
 # python3 describealign.py video.mp4 audio_desc.mp3
