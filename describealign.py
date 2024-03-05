@@ -1205,8 +1205,8 @@ def command_line_interface():
   parser = argparse.ArgumentParser(
                           description="Replaces a video's sound with an audio description.",
                           usage="describealign video_file.mp4 audio_file.mp3")
-  parser.add_argument("video", help='A video file or directory containing video files.', nargs='?')
-  parser.add_argument("audio", help='An audio file or directory containing audio files.', nargs='?')
+  parser.add_argument("video", help='A video file or directory containing video files.', nargs='?', default=None)
+  parser.add_argument("audio", help='An audio file or directory containing audio files.', nargs='?', default=None)
   parser.add_argument('--smoothness', type=float, default=50,
                       help='Lower values make the alignment more accurate when there are skips ' + \
                            '(e.g. describer pauses), but also make it more likely to misalign. ' + \
