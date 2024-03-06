@@ -497,7 +497,7 @@ def plot_alignment(plot_filename_no_ext, path, smooth_path, quals, runs, bad_cli
   plt.xlabel('Video Time (minutes)')
   plt.ylabel('Audio Description Offset (seconds)')
   plt.title('Alignment')
-  plt.legend().legendHandles[0].set_color(scatter_color)
+  plt.legend().legend_handles[0].set_color(scatter_color)
   plt.tight_layout()
   plt.savefig(plot_filename_no_ext + '.png', dpi=400)
   plt.clf()
