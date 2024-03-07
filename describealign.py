@@ -59,6 +59,7 @@ import glob
 import itertools
 from pathlib import Path
 import sys
+from typing import Optional
 import numpy as np
 import ffmpeg
 import platformdirs
@@ -1110,41 +1111,24 @@ def combine_gui(video_files, audio_files, config_path):
       break
   combine_window.close()
 
-def migrate_config(old_paths: list[Path], new_path: Path) -> bool:
+def migrate_config(old_path: Optional[Path], new_path: Path) -> None:
   """
   Migrate configuration from old location.
   
-  Only runs if one of old_paths exists but new_path does not
-  
-  :param old_paths: A list of previous config file locations, in chronological order oldest to newest
-  :param new_path: The new config location
-  :returns: True if the config was migrated, else False
+  Only runs if the old_path exists but new_path does not
   """
-  if new_path.exists():
-    return False
+  if new_path.exists() or not old_path or not old_path.exists():
+    return
   
-  # Ensure the current path isn't in the old list
-  if new_path in old_paths:
-    old_paths.remove(new_path)
-  
-  # Work backwards in time, prioritize newest config locations
-  for old_path in reversed(old_paths):
-    if not old_path.exists():
-      continue
-    
-    old_data = old_path.read_text(encoding='utf-8')
-    new_path.write_text(old_data, encoding='utf-8')
-    print(f"Configuration migrated to {new_path}")
-    try:
-      old_path.unlink()
-    except OSError as exc:
-      print("Failed to remove old config:", *traceback.format_exception_only(exc))
-    else:
-      print("Successfully removed old config file.")
-      
-    return True
-  
-  return False
+  old_data = old_path.read_text(encoding='utf-8')
+  new_path.write_text(old_data, encoding='utf-8')
+  print(f"Configuration migrated to {new_path}")
+  try:
+    old_path.unlink()
+  except OSError as exc:
+    print("Failed to remove old config:", *traceback.format_exception_only(exc))
+  else:
+    print("Successfully removed old config file.")
 
 def main_gui():
   config_path = platformdirs.user_config_path(appname='describealign', appauthor=False, ensure_exists=True) / 'config.ini'
@@ -1153,12 +1137,22 @@ def main_gui():
     Path(__file__).resolve().parent / 'config.ini',
     platformdirs.user_config_path(appname='describealign', ensure_exists=True) / 'config.ini',
   ]
-    
+  
+  # Get newest existent path
+  old_config = next(
+    (
+      file 
+      for file in reversed(old_paths)
+      if file.exists()
+    ), 
+    None,
+  )
+  
   try:
-    migrate_config(old_paths, config_path)
+    migrate_config(old_config, config_path)
   except OSError as exc:
     print(f"Error migrating old config:", *traceback.format_exception_only(exc))
-    print(f"Old config left in place at {old_paths}")
+    print(f"Old config left in place at {old_config}")
   
   sg.theme('Light Blue 2')
   
