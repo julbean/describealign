@@ -59,6 +59,7 @@ import glob
 import itertools
 from pathlib import Path
 import sys
+from typing import Optional
 import numpy as np
 import ffmpeg
 import platformdirs
@@ -1110,13 +1111,13 @@ def combine_gui(video_files, audio_files, config_path):
       break
   combine_window.close()
 
-def migrate_config(old_path: Path, new_path: Path) -> None:
+def migrate_config(old_path: Optional[Path], new_path: Path) -> None:
   """
   Migrate configuration from old location.
   
   Only runs if the old_path exists but new_path does not
   """
-  if new_path.exists() or not old_path.exists():
+  if new_path.exists() or not old_path or not old_path.exists():
     return
   
   old_data = old_path.read_text(encoding='utf-8')
@@ -1130,8 +1131,23 @@ def migrate_config(old_path: Path, new_path: Path) -> None:
     print("Successfully removed old config file.")
 
 def main_gui():
-  config_path = platformdirs.user_config_path(appname='describealign', ensure_exists=True) / 'config.ini'
-  old_config = Path(__file__).resolve().parent / 'config.ini'
+  config_path = platformdirs.user_config_path(appname='describealign', appauthor=False, ensure_exists=True) / 'config.ini'
+  old_paths = [
+    # Place in chronological order (oldest -> newest)
+    Path(__file__).resolve().parent / 'config.ini',
+    platformdirs.user_config_path(appname='describealign', ensure_exists=True) / 'config.ini',
+  ]
+  
+  # Get newest existent path
+  old_config = next(
+    (
+      file 
+      for file in reversed(old_paths)
+      if file.exists()
+    ), 
+    None,
+  )
+  
   try:
     migrate_config(old_config, config_path)
   except OSError as exc:
