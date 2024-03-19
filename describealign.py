@@ -784,9 +784,11 @@ def write_replaced_media_to_disk(output_filename, media_arr, video_file=None, au
     if os.path.splitext(output_filename)[1] == os.path.splitext(video_file)[1]:
       # wav files don't have codecs compatible with most video containers, so we convert to aac
       audio_codec = 'copy' if os.path.splitext(audio_desc_file)[1] != '.wav' else 'aac'
+      # flac audio may only have experimental support in some video containers (e.g. mp4)
+      standards = 'normal' if os.path.splitext(audio_desc_file)[1] != '.flac' else 'experimental'
       write_command = ffmpeg.output(media_input, original_video, output_filename,
                                     acodec=audio_codec, vcodec='copy', scodec='copy',
-                                    max_interleave_delta='0', loglevel='fatal',
+                                    max_interleave_delta='0', loglevel='fatal', strict=standards,
                                     **{'bsf:v': f'setts=ts=\'{setts_cmd}\'',
                                        'bsf:s': f'setts=ts=\'{setts_cmd}\''}).overwrite_output()
       write_command.run(cmd=get_ffmpeg())
