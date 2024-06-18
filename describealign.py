@@ -843,6 +843,7 @@ def combine(video, audio, smoothness=50, stretch_audio=False, keep_non_ad=False,
                  f"The audio path has {len(audio_desc_files)} files"]
     raise RuntimeError("\n".join(error_msg))
   
+  display("", display_func)
   ensure_folders_exist([output_dir], display_func)
   if PLOT_ALIGNMENT_TO_FILE:
     ensure_folders_exist([alignment_dir], display_func)
