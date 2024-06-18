@@ -1066,7 +1066,7 @@ def combine_print_exceptions(print_queue, *args, **kwargs):
   writer = QueueWriter(print_queue)
   with redirect_stdout(writer), redirect_stderr(writer):
     try:
-        combine(*args, **kwargs)
+      combine(*args, **kwargs)
     except Exception:
       traceback.print_exc()
 
