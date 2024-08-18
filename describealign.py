@@ -721,10 +721,10 @@ def encode_fit_as_ffmpeg_expr(smooth_path, clips, video_offset, start_key_frame)
     # but that means the video is behind the audio and needs to catch up by playing quicker
     # catchup_spread is the ratio of time to spend catching up to the amount of catching up needed
     catchup_spread = 1./CATCHUP_RATE
-    setts_cmd.append(f'+clip(TS-STARTPTS,0,{start_skip*(1+catchup_spread)}/TB)*{-1./(1+catchup_spread)}')
+    setts_cmd.append(f'+clip(TS-{start_key_frame},0,{start_skip*(1+catchup_spread)}/TB)*{-1./(1+catchup_spread)}')
   elif video_offset < 0:
     # if the audio starts before the video, stretch the first frame of the video back to meet it
-    setts_cmd.append(f'+clip(TS-STARTPTS,0,{-video_offset/10000.}/TB)*10000')
+    setts_cmd.append(f'+clip(TS-{start_key_frame},0,{-video_offset/10000.}/TB)*10000')
   # each segment of the linear fit can be encoded as a single clip function
   setts_cmd.append('+(0')
   for clip_start, clip_end in clips:
@@ -735,7 +735,7 @@ def encode_fit_as_ffmpeg_expr(smooth_path, clips, video_offset, start_key_frame)
     audio_desc_length = audio_desc_end - audio_desc_start
     video_length = video_end - video_start
     slope = audio_desc_length / video_length
-    setts_cmd.append(f'+clip(TS-STARTPTS-{video_start:.4f}/TB,0,{max(0,video_length):.4f}/TB)*{slope-1:.9f}')
+    setts_cmd.append(f'+clip(TS-{start_key_frame}-{video_start:.4f}/TB,0,{max(0,video_length):.4f}/TB)*{slope-1:.9f}')
   setts_cmd.append(')')
   setts_cmd = ''.join(setts_cmd)
   return setts_cmd
