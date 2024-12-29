@@ -1202,7 +1202,11 @@ def main_gui():
         window.enable()
         continue
       video_files = values['-VIDEO_FILES-'].split(';')
+      if len(video_files) == 1:
+        video_files = video_files[0]
       audio_files = values['-AUDIO_FILES-'].split(';')
+      if len(audio_files) == 1:
+        audio_files = audio_files[0]
       combine_gui(video_files, audio_files, config_path)
     if event == 'Settings':
       window.disable()
