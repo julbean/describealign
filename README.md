@@ -103,9 +103,11 @@ Rate change of   -0.1% from  0:21:38.09 to  0:22:15.77 aligning with audio from 
 
 ## Advanced Usage
 
-### directories
+### batching
 
 describealign can be given a directory of videos and a directory of audio files rather than individual files. describealign assumes files from the two directories correspond based on their lexicographic order.
+
+Alternatively, multiple files can be selected simultaneously in the GUI's file selectors. The selected Video and Audio files are first sorted in lexicographic order, then corresponded and aligned.
 
 ### stretch_audio (audio-to-video alignment)
 
