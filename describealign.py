@@ -380,7 +380,10 @@ def smooth_align(path, quals, smoothness):
                               -scipy.sparse.eye(num_fit_points)])
   b_eq = y_diffs[1:  ] / x_diffs[1:  ] - \
          y_diffs[ :-1] / x_diffs[ :-1]
-  fit = scipy.optimize.linprog(c, A_eq=A_eq, b_eq=b_eq)
+  fit = scipy.optimize.linprog(c, A_eq=A_eq, b_eq=b_eq, method='highs-ds')
+  # if dual simplex solver encounters numerical problems, retry with interior point solver
+  if not fit.success and fit.status == 4:
+    fit = scipy.optimize.linprog(c, A_eq=A_eq, b_eq=b_eq, method='highs-ipm')
   if not fit.success:
     print(fit)
     raise RuntimeError("Smooth Alignment L1-Min Optimization Failed!")
@@ -668,7 +671,10 @@ def detect_describer(video_arr, video_spec, video_spec_raw, video_timings,
                                scipy.sparse.eye(num_fit_points-1),
                               -scipy.sparse.eye(num_fit_points-1)])
   b_eq = y_diffs
-  fit = scipy.optimize.linprog(c, A_eq=A_eq, b_eq=b_eq)
+  fit = scipy.optimize.linprog(c, A_eq=A_eq, b_eq=b_eq, method='highs-ds')
+  # if dual simplex solver encounters numerical problems, retry with interior point solver
+  if not fit.success and fit.status == 4:
+    fit = scipy.optimize.linprog(c, A_eq=A_eq, b_eq=b_eq, method='highs-ipm')
   if not fit.success:
     print(fit)
     raise RuntimeError("Describer Voice Detection L1-Min Optimization Failed!")
