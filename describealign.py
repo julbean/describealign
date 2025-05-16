@@ -553,6 +553,11 @@ def replace_aligned_segments(video_arr, audio_desc_arr, smooth_path, runs, no_pi
     segment = np.hstack(segment)
     return segment
   
+  # compress dual channel audio to mono for use in pitch corrected stretching
+  # pytsmod's wsola treats channels separately, so without this it sounds weird
+  if not no_pitch_correction:
+    audio_desc_arr_mono = np.mean(audio_desc_arr, axis=0)
+  
   x,y = zip(*smooth_path)
   for run in runs:
     run_length_seconds = y[run[-1][1]] - y[run[0][0]]
@@ -573,7 +578,7 @@ def replace_aligned_segments(video_arr, audio_desc_arr, smooth_path, runs, no_pi
         anchor_point_pair[1][-1] -= 1
         anchor_y_offset = anchor_point_pair[1][0]
         anchor_point_pair[1,:] -= anchor_y_offset
-        stretched_audio = pytsmod.wsola(audio_desc_arr, anchor_point_pair)
+        stretched_audio = pytsmod.wsola(audio_desc_arr_mono, anchor_point_pair)
       video_arr[:,slice(*anchor_points[1,clip_index:clip_index+2])] = stretched_audio
 
 # identify which segments of the replaced audio actually have the describer speaking
@@ -755,7 +760,7 @@ def get_ffprobe():
 def get_closest_key_frame_time(video_file, time):
   if time <= 0:
     return 0
-  key_frames = ffmpeg.probe(video_file, cmd=get_ffprobe(), select_streams='v',
+  key_frames = ffmpeg.probe(video_file, cmd=get_ffprobe(), select_streams='V',
                             show_frames=None, skip_frame='nokey')['frames']
   key_frame_times = np.array([float(frame['pts_time']) for frame in key_frames] + [0])
   return np.max(key_frame_times[key_frame_times <= time])
@@ -890,6 +895,11 @@ def combine(video, audio, smoothness=50, stretch_audio=False, keep_non_ad=False,
     if os.path.exists(output_filename) and os.path.getsize(output_filename) > 0:
       display("   output file already exists, skipping...", display_func)
       continue
+    
+    # print warning if output file's full path is longer than Windows MAX_PATH (260)
+    full_output_filename = os.path.abspath(output_filename)
+    if IS_RUNNING_WINDOWS and len(full_output_filename) >= 260:
+      display("   WARNING: very long output path, ffmpeg may fail...", display_func)
     
     video_arr = parse_audio_from_file(video_file)
     audio_desc_arr = parse_audio_from_file(audio_desc_file)
@@ -1206,6 +1216,7 @@ def main_gui():
         window.disable()
         sg.Popup('Error: empty input field.', font=('Arial', 20))
         window.enable()
+        window['-VIDEO_FILES-'].set_focus()
         continue
       video_files = values['-VIDEO_FILES-'].split(';')
       if len(video_files) == 1:
@@ -1213,11 +1224,15 @@ def main_gui():
       audio_files = values['-AUDIO_FILES-'].split(';')
       if len(audio_files) == 1:
         audio_files = audio_files[0]
+      window.disable()
       combine_gui(video_files, audio_files, config_path)
+      window.enable()
+      window['-VIDEO_FILES-'].set_focus()
     if event == 'Settings':
       window.disable()
       settings_gui(config_path)
       window.enable()
+      window['-VIDEO_FILES-'].set_focus()
     if event == sg.WIN_CLOSED:
       break
   window.close()
