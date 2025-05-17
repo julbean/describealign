@@ -461,7 +461,8 @@ def cap_synced_end_points(smooth_path, video_arr, audio_desc_arr):
     smooth_path[-1] = new_end_point
 
 # visualize both the rough and smooth alignments
-def plot_alignment(plot_filename_no_ext, path, smooth_path, quals, runs, bad_clips, ad_timings):
+def plot_alignment(plot_filename_no_ext, path, smooth_path, quals, runs,
+                   bad_clips, ad_timings, similarity_percent):
   scatter_color = [.2,.4,.8]
   lcs_rgba = np.zeros((len(quals),4))
   lcs_rgba[:,:3] = np.array(scatter_color)[None,:]
@@ -500,7 +501,7 @@ def plot_alignment(plot_filename_no_ext, path, smooth_path, quals, runs, bad_cli
       plt.plot(video_times / 60., audio_offsets, 'r-', lw=1, label='Replaced Audio')
   plt.xlabel('Video Time (minutes)')
   plt.ylabel('Audio Description Offset (seconds)')
-  plt.title('Alignment')
+  plt.title(f"Alignment - Media Similarity {similarity_percent:.2f}%")
   plt.legend().legend_handles[0].set_color(scatter_color)
   plt.tight_layout()
   plt.savefig(plot_filename_no_ext + '.png', dpi=400)
@@ -509,6 +510,7 @@ def plot_alignment(plot_filename_no_ext, path, smooth_path, quals, runs, bad_cli
   with open(plot_filename_no_ext + '.txt', 'w') as file:
     rough_clips, median_slope, _ = chunk_path(smooth_path, tol=2e-2)
     video_offset = np.diff(smooth_path[rough_clips[0][0]])[0]
+    print(f"Input file similarity: {similarity_percent:.2f}%", file=file)
     print("Main changes needed to video to align it to audio input:", file=file)
     print(f"Start Offset: {-video_offset:.2f} seconds", file=file)
     print(f"Median Rate Change: {(median_slope-1.)*100:.2f}%", file=file)
@@ -913,6 +915,13 @@ def combine(video, audio, smoothness=50, stretch_audio=False, keep_non_ad=False,
     
     path, quals = rough_align(video_spec, audio_desc_spec, video_timings, audio_desc_timings)
     
+    similarity_ratio = float(len(quals)) / max(video_spec.shape[0], audio_desc_spec.shape[0])
+    similarity_percent = min(100, 100 * similarity_ratio)
+    if similarity_percent < 10:
+      display(f"   WARNING: similarity {similarity_percent:.1f}%, likely mismatched files", display_func)
+    if similarity_percent > 90:
+      display(f"   WARNING: similarity {similarity_percent:.1f}%, likely undescribed media", display_func)
+    
     smooth_path, runs, bad_clips, clips = smooth_align(path, quals, smoothness)
     
     cap_synced_end_points(smooth_path, video_arr, audio_desc_arr)
@@ -961,7 +970,8 @@ def combine(video, audio, smoothness=50, stretch_audio=False, keep_non_ad=False,
     del video_arr
     if PLOT_ALIGNMENT_TO_FILE:
       plot_filename_no_ext = os.path.join(alignment_dir, os.path.splitext(os.path.split(video_file)[1])[0])
-      plot_alignment(plot_filename_no_ext, path, smooth_path, quals, runs, bad_clips, ad_timings)
+      plot_alignment(plot_filename_no_ext, path, smooth_path, quals,
+                     runs, bad_clips, ad_timings, similarity_percent)
   display("All files processed.", display_func)
 
 def write_config_file(config_path, settings):
