@@ -78,13 +78,19 @@ import platform
 
 IS_RUNNING_WINDOWS = platform.system() == 'Windows'
 if IS_RUNNING_WINDOWS:
-  import PySimpleGUIWx as sg
   default_output_dir = 'videos_with_ad'
   default_alignment_dir = 'alignment_plots'
 else:
-  import PySimpleGUIQt as sg
   default_output_dir = os.path.expanduser('~') + '/videos_with_ad'
   default_alignment_dir = os.path.expanduser('~') + '/alignment_plots'
+
+try:
+  if IS_RUNNING_WINDOWS:
+    import PySimpleGUIWx as sg
+  else:
+    import PySimpleGUIQt as sg
+except ImportError:
+  sg = None
 
 def display(text, func=None):
   if func:
@@ -1250,11 +1256,14 @@ def main_gui():
 # Entry point for command line interaction, for example:
 # > describealign video.mp4 audio_desc.mp3
 def command_line_interface():
-  if len(sys.argv) < 2:
-    # No args, run gui
-    print('No input arguments detected, starting GUI...')
-    main_gui()
-    sys.exit(0)
+  if len(sys.argv) < 2
+    if sg is not None:
+      # No args, run gui
+      print('No input arguments detected, starting GUI...')
+      main_gui()
+      sys.exit(0)
+    else:
+      print("Can't launch GUI and arguments missing.\nGUI dependencies missing.")
   
   parser = argparse.ArgumentParser(
                           description="Replaces a video's sound with an audio description.",
@@ -1304,7 +1313,7 @@ def command_line_interface():
     # Make sure the file is world executable
     os.chmod(get_ffmpeg(), 0o755)
     os.chmod(get_ffprobe(), 0o755)
-  elif args.video or args.audio:
+  elif args.video and args.audio:
     combine(args.video, args.audio, args.smoothness, args.stretch_audio, args.keep_non_ad,
             args.boost, args.ad_detect_sensitivity, args.boost_sensitivity, args.yes,
             args.prepend, args.no_pitch_correction, args.output_dir, args.alignment_dir,
