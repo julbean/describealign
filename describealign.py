@@ -1256,7 +1256,7 @@ def main_gui():
 # Entry point for command line interaction, for example:
 # > describealign video.mp4 audio_desc.mp3
 def command_line_interface():
-  if len(sys.argv) < 2
+  if len(sys.argv) < 2:
     if sg is not None:
       # No args, run gui
       print('No input arguments detected, starting GUI...')
