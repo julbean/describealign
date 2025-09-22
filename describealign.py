@@ -1256,11 +1256,14 @@ def main_gui():
 # Entry point for command line interaction, for example:
 # > describealign video.mp4 audio_desc.mp3
 def command_line_interface():
-  if len(sys.argv) < 2 and sg is not None:
-    # No args, run gui
-    print('No input arguments detected, starting GUI...')
-    main_gui()
-    sys.exit(0)
+  if len(sys.argv) < 2
+    if sg is not None:
+      # No args, run gui
+      print('No input arguments detected, starting GUI...')
+      main_gui()
+      sys.exit(0)
+    else:
+      print("Can't launch GUI and arguments missing.\nGUI dependencies missing.")
   
   parser = argparse.ArgumentParser(
                           description="Replaces a video's sound with an audio description.",
