@@ -1132,7 +1132,7 @@ if wx is not None:
   
   class DialogSettings(wx.Dialog):
     def __init__(self, parent, config_path, is_dark):
-      wx.Dialog.__init__(self, parent, title="Settings - describealign", size=wx.Size(450,330),
+      wx.Dialog.__init__(self, parent, title="Settings - describealign", size=wx.Size(450,370),
                          style=wx.DEFAULT_DIALOG_STYLE|wx.TAB_TRAVERSAL)
       # setting the GUI dialog's font causes all contained elements to inherit that font by default
       self.SetFont(wx.Font(*gui_font))
@@ -1209,14 +1209,14 @@ if wx is not None:
       #
       self.SetSizer(sizer_dialog)
       sizer_dialog.Add(self.text_header, 0, wx.ALL, 5)
-      sizer_dialog.Add(sizer_output_dir, 1, wx.LEFT|wx.RIGHT|wx.EXPAND, 2)
-      sizer_dialog.Add(sizer_alignment_dir, 1, wx.LEFT|wx.RIGHT|wx.EXPAND, 2)
-      sizer_dialog.Add(sizer_prepend, 1, wx.LEFT|wx.EXPAND, 5)
-      sizer_dialog.Add(sizer_stretch_audio_no_pitch_correction_outer, 1, wx.LEFT|wx.EXPAND, 5)
+      sizer_dialog.Add(sizer_output_dir, 3, wx.LEFT|wx.RIGHT|wx.EXPAND, 2)
+      sizer_dialog.Add(sizer_alignment_dir, 3, wx.LEFT|wx.RIGHT|wx.EXPAND, 2)
+      sizer_dialog.Add(sizer_prepend, 3, wx.LEFT|wx.EXPAND, 5)
+      sizer_dialog.Add(sizer_stretch_audio_no_pitch_correction_outer, 3, wx.LEFT|wx.EXPAND, 5)
       sizer_stretch_audio_no_pitch_correction_outer.Add(panel_stretch_audio_no_pitch_correction,
                                                         1, wx.LEFT|wx.EXPAND, 5)
       sizer_stretch_audio_no_pitch_correction_outer.Add((0, 0), 2, wx.EXPAND, 5)  # spacer
-      sizer_dialog.Add(sizer_save_cancel, 2, wx.BOTTOM|wx.EXPAND, 5)
+      sizer_dialog.Add(sizer_save_cancel, 5, wx.BOTTOM|wx.EXPAND, 5)
       sizer_prepend.Add(self.text_prepend, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
       sizer_prepend.Add(self.text_ctrl_prepend, 0, wx.ALIGN_CENTER_VERTICAL, 5)
       sizer_output_dir.Add(self.static_box_sizer_output, 1, wx.LEFT|wx.RIGHT|wx.ALIGN_CENTER_VERTICAL, 5)
