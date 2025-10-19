@@ -1,3 +1,5 @@
+__version__ = '2.0.1'
+
 # combines videos with matching audio files (e.g. audio descriptions)
 # input: video or folder of videos and an audio file or folder of audio files
 # output: videos in a folder "videos_with_ad", with aligned segments of the audio replaced
@@ -1130,7 +1132,7 @@ if wx is not None:
   
   class DialogSettings(wx.Dialog):
     def __init__(self, parent, config_path, is_dark):
-      wx.Dialog.__init__(self, parent, title="Settings - describealign", size=wx.Size(450,330), 
+      wx.Dialog.__init__(self, parent, title="Settings - describealign", size=wx.Size(450,330),
                          style=wx.DEFAULT_DIALOG_STYLE|wx.TAB_TRAVERSAL)
       # setting the GUI dialog's font causes all contained elements to inherit that font by default
       self.SetFont(wx.Font(*gui_font))
@@ -1152,7 +1154,10 @@ if wx is not None:
       self.text_ctrl_prepend = wx.TextCtrl(self, name="prepend")
       set_tooltip(self.text_ctrl_prepend, "Output file name prepend text. Default is \"ad_\"")
       
-      self.checkbox_stretch_audio = wx.CheckBox(self, label="stretch_audio", name="stretch_audio")
+      panel_stretch_audio_no_pitch_correction = wx.Panel(self)
+      
+      self.checkbox_stretch_audio = wx.CheckBox(panel_stretch_audio_no_pitch_correction,
+                                                label="stretch_audio", name="stretch_audio")
       set_tooltip(self.checkbox_stretch_audio, "Stretches the input audio to fit the input video. " + \
                                                "Default is to stretch the video to fit the audio. " + \
                                                "Keeps original video audio as secondary tracks. Slower " + \
@@ -1160,8 +1165,8 @@ if wx is not None:
                                                "paging or Out of Memory errors on low-RAM systems.")
       self.checkbox_stretch_audio.Bind(wx.EVT_CHECKBOX, self.update_stretch_audio_subsettings)
       
-      self.checkbox_no_pitch_correction = wx.CheckBox(self, label="no_pitch_correction",
-                                                      name="no_pitch_correction")
+      self.checkbox_no_pitch_correction = wx.CheckBox(panel_stretch_audio_no_pitch_correction,
+                                                      label="no_pitch_correction", name="no_pitch_correction")
       set_tooltip(self.checkbox_no_pitch_correction, "Skips pitch correction step when stretching audio. " + \
                                                      "Requires --stretch_audio to be set, otherwise " + \
                                                      "does nothing.")
@@ -1175,7 +1180,8 @@ if wx is not None:
       sizer_output_dir = wx.BoxSizer(wx.HORIZONTAL)
       sizer_alignment_dir = wx.BoxSizer(wx.HORIZONTAL)
       sizer_prepend = wx.BoxSizer(wx.HORIZONTAL)
-      sizer_stretch_audio_no_pitch_correction = wx.BoxSizer(wx.VERTICAL)
+      sizer_stretch_audio_no_pitch_correction_outer = wx.BoxSizer(wx.HORIZONTAL)
+      sizer_stretch_audio_no_pitch_correction_inner = wx.BoxSizer(wx.VERTICAL)
       sizer_save_cancel = wx.BoxSizer(wx.HORIZONTAL)
       
       # Configure layout with nested Box Sizers:
@@ -1192,9 +1198,11 @@ if wx is not None:
       #     sizer_prepend
       #       text_prepend
       #       text_ctrl_prepend
-      #     sizer_stretch_audio_no_pitch_correction
-      #       checkbox_stretch_audio
-      #       checkbox_no_pitch_correction
+      #     sizer_stretch_audio_no_pitch_correction_outer
+      #       panel_stretch_audio_no_pitch_correction
+      #         sizer_stretch_audio_no_pitch_correction_inner
+      #           checkbox_stretch_audio
+      #           checkbox_no_pitch_correction
       #     sizer_save_cancel
       #       button_save
       #       button_cancel
@@ -1204,7 +1212,10 @@ if wx is not None:
       sizer_dialog.Add(sizer_output_dir, 1, wx.LEFT|wx.RIGHT|wx.EXPAND, 2)
       sizer_dialog.Add(sizer_alignment_dir, 1, wx.LEFT|wx.RIGHT|wx.EXPAND, 2)
       sizer_dialog.Add(sizer_prepend, 1, wx.LEFT|wx.EXPAND, 5)
-      sizer_dialog.Add(sizer_stretch_audio_no_pitch_correction, 1, wx.LEFT|wx.EXPAND, 5)
+      sizer_dialog.Add(sizer_stretch_audio_no_pitch_correction_outer, 1, wx.LEFT|wx.EXPAND, 5)
+      sizer_stretch_audio_no_pitch_correction_outer.Add(panel_stretch_audio_no_pitch_correction,
+                                                        1, wx.LEFT|wx.EXPAND, 5)
+      sizer_stretch_audio_no_pitch_correction_outer.Add((0, 0), 2, wx.EXPAND, 5)  # spacer
       sizer_dialog.Add(sizer_save_cancel, 2, wx.BOTTOM|wx.EXPAND, 5)
       sizer_prepend.Add(self.text_prepend, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
       sizer_prepend.Add(self.text_ctrl_prepend, 0, wx.ALIGN_CENTER_VERTICAL, 5)
@@ -1212,8 +1223,9 @@ if wx is not None:
       self.static_box_sizer_output.Add(self.dir_picker_output, 1, wx.EXPAND)
       sizer_alignment_dir.Add(self.static_box_sizer_alignment, 1, wx.LEFT|wx.RIGHT|wx.ALIGN_CENTER_VERTICAL, 5)
       self.static_box_sizer_alignment.Add(self.dir_picker_alignment, 1, wx.EXPAND)
-      sizer_stretch_audio_no_pitch_correction.Add(self.checkbox_stretch_audio, 0, wx.ALL, 5)
-      sizer_stretch_audio_no_pitch_correction.Add(self.checkbox_no_pitch_correction, 0, wx.ALL, 5)
+      panel_stretch_audio_no_pitch_correction.SetSizer(sizer_stretch_audio_no_pitch_correction_inner)
+      sizer_stretch_audio_no_pitch_correction_inner.Add(self.checkbox_stretch_audio, 0, wx.ALL, 5)
+      sizer_stretch_audio_no_pitch_correction_inner.Add(self.checkbox_no_pitch_correction, 0, wx.ALL, 5)
       sizer_save_cancel.Add((0, 0), 3, wx.EXPAND, 5)  # spacer
       sizer_save_cancel.Add(self.button_save, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
       sizer_save_cancel.Add((0, 0), 2, wx.EXPAND, 5)  # spacer
@@ -1226,7 +1238,8 @@ if wx is not None:
       # cache dictionaries mapping setting names to widget setter and getter functions
       self.setting_getters = {}
       self.setting_setters = {}
-      for child in self.GetChildren():
+      for child in itertools.chain(self.GetChildren(),
+                                   panel_stretch_audio_no_pitch_correction.GetChildren()):
         child_class_name = child.GetClassName()
         child_name = child.GetName()
         if child_class_name == "wxDirPickerCtrl":
@@ -1250,6 +1263,8 @@ if wx is not None:
       self.update_stretch_audio_subsettings()
       
       set_background_color(self, is_dark)
+      if sum(self.checkbox_stretch_audio.GetForegroundColour()[:3]) < 350:
+        panel_stretch_audio_no_pitch_correction.SetBackgroundColour(gui_background_color_light)
     
     def update_stretch_audio_subsettings(self, event=None):
       subsettings = [self.checkbox_no_pitch_correction]
@@ -1453,16 +1468,21 @@ if wx is not None:
   def set_background_color(window, is_dark):
     children = get_children(window)
     for window in children + [window]:
+      # modifying a CheckBox converts it into a Button, which would mess with screen readers
+      if isinstance(window, wx.CheckBox):
+        continue
       if is_dark:
-        if isinstance(window, (wx.ListCtrl, wx.Button, wx.TextCtrl)):
+        if isinstance(window, (wx.ListCtrl, wx.TextCtrl)):
           window.SetBackgroundColour("Black")
+        elif isinstance(window, wx.Button):
+          window.SetBackgroundColour(tuple(x // 2 for x in gui_background_color_dark))          
         else:
           window.SetBackgroundColour(gui_background_color_dark)
       window.SetForegroundColour("White" if is_dark else "Black")
 
   class FrameMain(wx.Frame):
     def __init__(self, parent):
-      wx.Frame.__init__(self, parent, title="describealign", size=wx.Size(800, 500))
+      wx.Frame.__init__(self, parent, title=f"describealign v{__version__}", size=wx.Size(800, 500))
       # setting the GUI frame's font causes all contained elements to inherit that font by default
       self.SetFont(wx.Font(*gui_font))
       appearance = wx.SystemSettings.GetAppearance()
@@ -1725,27 +1745,26 @@ def command_line_interface():
   args = parser.parse_args()
   
   if args.version:
-    import importlib
-    cur_dir = os.getcwd()
-    if sys.path[0] == cur_dir:
-      # ignore describealign.py in current directory
-      del sys.path[0]
-      installed_spec = importlib.util.find_spec('describealign')
-      sys.path = [cur_dir] + sys.path
+    print(f"version: {__version__}")
+    if "__compiled__" in globals() or getattr(sys, 'frozen', False):
+      print("running from compiled binary")
     else:
-      installed_spec = importlib.util.find_spec('describealign')
-    if installed_spec is None:
-      print("describealign is not installed")
-    else:
-      installed_path = os.path.abspath(installed_spec.origin)
+      import importlib
+      cur_dir = os.getcwd()
+      if sys.path[0] == cur_dir:
+        # ignore describealign.py in current directory
+        del sys.path[0]
+        installed_spec = importlib.util.find_spec('describealign')
+        sys.path = [cur_dir] + sys.path
+      else:
+        installed_spec = importlib.util.find_spec('describealign')
       this_script_path = os.path.abspath(__file__)
-      if installed_path != this_script_path:
-        print("WARNING: describealign is not being run from the installed version")
-        print(f"  installed path: {installed_path}")
-        print(f"    content hash: {get_version_hash(installed_path)}")
-        print(f"  this file path: {this_script_path}")
-        print(f"    content hash: {get_version_hash(this_script_path)}")
-      print(f"installed version: {importlib.metadata.version('describealign')}")
+      if installed_spec is None or (this_script_path != os.path.abspath(installed_spec.origin)):
+        print("running from downloaded .py file")
+      else:
+        print("running from installed package")
+      print(f"path: {this_script_path}")
+      print(f"content hash: {get_version_hash(this_script_path)}")
   elif args.install_ffmpeg:
     # Make sure the file is world executable
     os.chmod(get_ffmpeg(), 0o755)
