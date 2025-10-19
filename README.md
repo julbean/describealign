@@ -78,7 +78,7 @@ A text version of each plot is saved alongside it:
 
 ```
 Parameters: {'stretch_audio': False, 'no_pitch_correction': False}
-Version Hash: 1fcf9159
+Version Hash: 8079dedc
 Input file similarity: 50.70%
 Main changes needed to video to align it to audio input:
 Start Offset: 201.81 seconds
