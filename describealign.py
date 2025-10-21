@@ -599,6 +599,9 @@ def align(video_features, audio_desc_features, video_energy, audio_desc_energy):
     bins = np.floor(bins).astype(int)
     np.clip(bins, 0, 6, out=bins)
     audio_desc_bins.append(np.dot(bins, 7**np.arange(num_bins)).tolist())
+  del feature
+  del norm
+  del bins
   
   def pairwise_intersection(set1, set2, set3):
     return (set1 & set2).union((set1 & set3), (set2 & set3))
@@ -635,6 +638,12 @@ def align(video_features, audio_desc_features, video_energy, audio_desc_energy):
       best_so_far.add((video_index, audio_desc_index, cum_qual))
       backpointers[(video_index, audio_desc_index)] = (prev_video_index, prev_audio_desc_index)
   del video_dicts
+  del video_dict
+  del audio_desc_bins
+  del video_features_mean_sub
+  del audio_desc_features_mean_sub
+  del video_uniform_norms
+  del audio_desc_uniform_norms
   path = [best_so_far[-1][:2]]
   while path[-1][:2] in backpointers:
     # failsafe to prevent an infinite loop that should never happen anyways
@@ -887,6 +896,7 @@ def align(video_features, audio_desc_features, video_energy, audio_desc_energy):
         seen_points.add(point)
         points[i].append((j, cluster_index, qual))
   del seen_points
+  del video_interp
   points = [sorted(point) for point in points]
   
   best_so_far = SortedList(key=lambda x:x[0])
@@ -897,6 +907,7 @@ def align(video_features, audio_desc_features, video_energy, audio_desc_energy):
   prev_cache[0] = (0, 0, -1, 0, 0)  # video_index, audio_desc_index, cluster_index, qual, cum_qual
   reversed_min_points = [min(x)[0] if len(x) > 0 else np.inf for x in points[::-1]]
   forward_min = list(itertools.accumulate(reversed_min_points, min))[::-1]
+  del reversed_min_points
   for i in range(len(audio_desc_features_scaled)):
     for j, cluster_index, qual in points[i]:
       cur_index = best_so_far.bisect_right((j,))
@@ -926,6 +937,7 @@ def align(video_features, audio_desc_features, video_energy, audio_desc_energy):
       if cluster_last[3] < cum_qual_cluster_jump:
         clusters_best_so_far[cluster_index] = (j, i, qual, cum_qual_cluster_jump)
       backpointers[(j, i)] = (prev_j, prev_i, prev_cluster_index, prev_qual, best_prev_cum_qual)
+  
   path = [best_so_far[-1]]
   while path[-1][:2] in backpointers:
     path.append(backpointers[path[-1][:2]])
