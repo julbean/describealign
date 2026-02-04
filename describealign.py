@@ -1,4 +1,4 @@
-__version__ = '2.0.2'
+__version__ = '2.0.3'
 
 # combines videos with matching audio files (e.g. audio descriptions)
 # input: video or folder of videos and an audio file or folder of audio files
@@ -141,6 +141,11 @@ def run_async_ffmpeg_command(command, media_arr, err_msg):
     print(e.stderr.decode('utf-8'))
     raise
 
+def get_ffmpeg_version():
+  ffmpeg_command = ffmpeg.input('').output('', version='')
+  stdout, _ = run_ffmpeg_command(ffmpeg_command, "get version information")
+  return float(str(stdout).split('version ')[1][:2])
+
 # read audio from file with ffmpeg and convert to numpy array
 def parse_audio_from_file(media_file, num_channels=2):
   # retrieve only the first audio track, injecting silence/trimming to force timestamps to match up
@@ -149,7 +154,6 @@ def parse_audio_from_file(media_file, num_channels=2):
                                                    af='aresample=async=1:first_pts=0', map='0:a:0',
                                                    ac=num_channels, ar=AUDIO_SAMPLE_RATE, loglevel='error')
   media_stream, _ = run_ffmpeg_command(ffmpeg_command, f"parse audio from input file: {media_file}")
-  # media_arr = np.frombuffer(media_stream, np.int16).astype(np.float32).reshape((-1, num_channels)).T
   media_arr = np.frombuffer(media_stream, np.int16).astype(np.float16).reshape((-1, num_channels)).T
   return media_arr
 
@@ -452,7 +456,8 @@ def get_closest_key_frame_time(video_file, time):
 
 # outputs a new media file with the replaced audio (which includes audio descriptions)
 def write_replaced_media_to_disk(output_filename, media_arr, video_file=None, audio_desc_file=None,
-                                 setts_cmd=None, video_offset=None, after_start_key_frame=None):
+                                 setts_cmd=None, video_offset=None, after_start_key_frame=None,
+                                 median_slope=1.):
   # if a media array is given, stretch_audio is enabled and media_arr should be added to the video
   if media_arr is not None:
     media_input = ffmpeg.input('pipe:', format='s16le', acodec='pcm_s16le', ac=2, ar=AUDIO_SAMPLE_RATE)
@@ -481,6 +486,8 @@ def write_replaced_media_to_disk(output_filename, media_arr, video_file=None, au
     audio_codec = 'copy' if os.path.splitext(audio_desc_file)[1] != '.wav' else 'aac'
     # flac audio may only have experimental support in some video containers (e.g. mp4)
     standards = 'normal' if os.path.splitext(audio_desc_file)[1] != '.flac' else 'experimental'
+    # stretch subtitle durations along with video so they don't overlap or have gaps
+    sub_stretch = f':duration=\'DURATION*{1./median_slope:.6f}\''
     # add frag_keyframe flag to prevent some players from ignoring audio/video start offsets
     # set both pts and dts simultaneously in video manually, as ts= does not do the same thing
     write_command = ffmpeg.output(media_input, original_video, output_filename,
@@ -488,16 +495,27 @@ def write_replaced_media_to_disk(output_filename, media_arr, video_file=None, au
                                   max_interleave_delta='0', loglevel='error',
                                   strict=standards, movflags='frag_keyframe',
                                   **{'bsf:v': f'setts=pts=\'{setts_cmd}\':dts=\'{setts_cmd}\'',
-                                     'bsf:s': f'setts=ts=\'{setts_cmd}\'',
+                                     'bsf:s': f'setts=ts=\'{setts_cmd}\'' + sub_stretch,
                                      "disposition:a:0": "default+visual_impaired+descriptions",
                                      "metadata:s:a:0": "title=AD"}).overwrite_output()
     run_ffmpeg_command(write_command, f"write output file: {output_filename}")
+
+def get_static_ffmpeg_version():
+  import importlib
+  static_ffmpeg_version = importlib.metadata.version('static_ffmpeg')
+  return float(static_ffmpeg_version[:2])
 
 # check whether static_ffmpeg has already installed ffmpeg and ffprobe
 def is_ffmpeg_installed():
   ffmpeg_dir = static_ffmpeg.run.get_platform_dir()
   indicator_file = os.path.join(ffmpeg_dir, "installed.crumb")
-  return os.path.exists(indicator_file)
+  if not os.path.exists(indicator_file):
+    return False
+  if get_ffmpeg_version() < 6:
+    print("Old ffmpeg version detected, updating to newer version...")
+    os.remove(indicator_file)
+    return False
+  return True
 
 def get_energy(arr):
   # downsample of 105, hann size 15, downsample by 2 gives 210 samples per second, ~65 halfwindows/second
@@ -1017,6 +1035,9 @@ def combine(video, audio, stretch_audio=False, yes=False, prepend="ad_", no_pitc
   
   # if ffmpeg isn't installed, install it
   if not is_ffmpeg_installed():
+    if get_static_ffmpeg_version() < 3:
+      print(f"  ERROR: outdated static_ffmpeg version")
+      raise ImportError("static_ffmpeg must be at least version 3.0")
     print("Downloading and installing ffmpeg (media editor, 50 MB download)...")
     get_ffmpeg()
     if not is_ffmpeg_installed():
@@ -1096,7 +1117,8 @@ def combine(video, audio, stretch_audio=False, yes=False, prepend="ad_", no_pitc
       video_arr *= (2**15 - 2.) / np.max(np.abs(video_arr))
       
       print("  processing output file...                   \r", end='')
-      write_replaced_media_to_disk(output_filename, video_arr, None if has_audio_extension else video_file)
+      write_replaced_media_to_disk(output_filename, video_arr, None if has_audio_extension else video_file,
+                                   median_slope=median_slope)
       del video_arr
     else:
       video_offset = video_times[0] - audio_desc_times[0]
@@ -1105,7 +1127,8 @@ def combine(video, audio, stretch_audio=False, yes=False, prepend="ad_", no_pitc
       print("  processing output file...                   \r", end='')
       setts_cmd = encode_fit_as_ffmpeg_expr(audio_desc_times, video_times, video_offset)
       write_replaced_media_to_disk(output_filename, None, video_file, audio_desc_file,
-                                   setts_cmd, video_offset, after_start_key_frame)
+                                   setts_cmd, video_offset, after_start_key_frame,
+                                   median_slope=median_slope)
     
     if PLOT_ALIGNMENT_TO_FILE:
       plot_filename_no_ext = os.path.join(alignment_dir, os.path.splitext(os.path.split(video_file)[1])[0])
