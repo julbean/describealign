@@ -501,6 +501,9 @@ def write_replaced_media_to_disk(output_filename, media_arr, video_file=None, au
     run_ffmpeg_command(write_command, f"write output file: {output_filename}")
 
 def get_static_ffmpeg_version():
+  # if running from compiled binary, assume correct version of static_ffmpeg
+  if "__compiled__" in globals() or getattr(sys, 'frozen', False):
+    return 3
   import importlib
   static_ffmpeg_version = importlib.metadata.version('static_ffmpeg')
   return float(static_ffmpeg_version[:2])
