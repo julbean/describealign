@@ -504,7 +504,7 @@ def get_static_ffmpeg_version():
   # if running from compiled binary, assume correct version of static_ffmpeg
   if "__compiled__" in globals() or getattr(sys, 'frozen', False):
     return 3
-  import importlib
+  import importlib.metadata
   static_ffmpeg_version = importlib.metadata.version('static_ffmpeg')
   return float(static_ffmpeg_version[:2])
 
@@ -1787,7 +1787,7 @@ def command_line_interface():
     if "__compiled__" in globals() or getattr(sys, 'frozen', False):
       print("running from compiled binary")
     else:
-      import importlib
+      import importlib.util
       cur_dir = os.getcwd()
       if sys.path[0] == cur_dir:
         # ignore describealign.py in current directory
