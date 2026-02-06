@@ -1,4 +1,4 @@
-__version__ = '2.0.4'
+__version__ = '2.0.5'
 
 # combines videos with matching audio files (e.g. audio descriptions)
 # input: video or folder of videos and an audio file or folder of audio files
@@ -144,7 +144,10 @@ def run_async_ffmpeg_command(command, media_arr, err_msg):
 def get_ffmpeg_version():
   ffmpeg_command = ffmpeg.input('').output('', version='')
   stdout, _ = run_ffmpeg_command(ffmpeg_command, "get version information")
-  return float(str(stdout).split('version ')[1][:2])
+  # strip out leading letter n indicating nightly build (e.g. static_ffmpeg's linux build)
+  version_string = str(stdout).split('version ')[1].lstrip('n')
+  version_major = float(version_string[:2])
+  return version_major
 
 # read audio from file with ffmpeg and convert to numpy array
 def parse_audio_from_file(media_file, num_channels=2):
