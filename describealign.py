@@ -1,4 +1,4 @@
-__version__ = '2.0.7'
+__version__ = '2.0.8'
 
 # combines videos with matching audio files (e.g. audio descriptions)
 # input: video or folder of videos and an audio file or folder of audio files
@@ -62,6 +62,7 @@ import natsort
 from collections import defaultdict
 from sortedcontainers import SortedList
 import hashlib
+import subprocess
 
 try:
   import wx
@@ -156,7 +157,7 @@ def parse_audio_from_file(media_file, num_channels=2):
   return media_arr
 
 def plot_alignment(plot_filename_no_ext, path, audio_times, video_times, similarity_percent,
-                   median_slope, stretch_audio, no_pitch_correction):
+                   median_slope, stretch_audio, no_pitch_correction, ffmpeg_command):
   downsample = 20
   path = path[::downsample]
   video_times_full, audio_times_full, cluster_indices, quals, cum_quals = path.T
@@ -221,6 +222,9 @@ def plot_alignment(plot_filename_no_ext, path, audio_times, video_times, similar
       print(f"Rate change of {(slope-1.)*100:8.1f}% from {str_from_time(video_times[i])} to " + \
             f"{str_from_time(video_times[i+1])} aligning with audio from " + \
             f"{str_from_time(audio_times[i])} to {str_from_time(audio_times[i+1])}", file=file)
+    print("", file=file)
+    print("FFmpeg command (Windows command prompt format):", file=file)
+    print(ffmpeg_command, file=file)
 
 # use the smooth alignment to replace runs of video sound with corresponding described audio
 def replace_aligned_segments(video_arr, audio_desc_arr, audio_desc_times, video_times, no_pitch_correction):
@@ -447,10 +451,10 @@ def get_key_frame_data(video_file, time=None, entry='pts_time'):
 def get_closest_key_frame_time(video_file, time):
   key_frame_times = get_key_frame_data(video_file, time)
   key_frame_times = key_frame_times if len(key_frame_times) > 0 else np.array([0])
-  prev_key_frame_times = key_frame_times[key_frame_times <= time]
-  prev_key_frame = np.max(prev_key_frame_times) if len(prev_key_frame_times) > 0 else time
   next_key_frame_times = key_frame_times[key_frame_times > time]
+  prev_key_frame_times = key_frame_times[key_frame_times <= time]
   next_key_frame = np.min(next_key_frame_times) if len(next_key_frame_times) > 0 else time
+  prev_key_frame = np.max(prev_key_frame_times) if len(prev_key_frame_times) > 0 else next_key_frame
   return (prev_key_frame + next_key_frame) / 2.
 
 def is_first_video_track_ad(video_file):
@@ -504,6 +508,12 @@ def write_replaced_media_to_disk(output_filename, media_arr, video_file=None, au
                                      "disposition:a:0": "default+visual_impaired+descriptions",
                                      "metadata:s:a:0": "title=AD"}).overwrite_output()
     run_ffmpeg_command(write_command, f"write output file: {output_filename}")
+  # convert ffmpeg command to Windows Command Prompt command line for logging
+  try:
+    ffmpeg_command = subprocess.list2cmdline(ffmpeg.compile(write_command, cmd=get_ffmpeg()))
+  except:
+    ffmpeg_command = ""
+  return ffmpeg_command
 
 def get_static_ffmpeg_version():
   # if running from compiled binary, assume correct version of static_ffmpeg
@@ -585,7 +595,7 @@ def align(video_features, audio_desc_features, video_energy, audio_desc_energy):
   samples_per_node = 210 // TIMESTEPS_PER_SECOND
   hann_window_unnormed = scipy.signal.windows.hann(2*samples_per_node+1)[1:-1]
   hann_window = hann_window_unnormed / np.sum(hann_window_unnormed)
-  get_mean = lambda arr: np.convolve(hann_window, arr, mode='same')
+  get_mean = lambda arr: np.convolve(hann_window, arr, mode='same')[:len(arr)]
   get_uniform_norm = lambda arr: np.convolve(np.ones(hann_window.shape), arr ** 2, mode='valid') ** .5
   def get_uniform_norms(features):
     return [np.clip(get_uniform_norm(feature), .001, None) for feature in features]
@@ -1143,8 +1153,9 @@ def combine(video, audio, stretch_audio=False, yes=False, prepend="ad_", no_pitc
       video_arr *= (2**15 - 2.) / np.max(np.abs(video_arr))
       
       print("  processing output file...                   \r", end='')
-      write_replaced_media_to_disk(output_filename, video_arr, None if has_audio_extension else video_file,
-                                   median_slope=median_slope)
+      ffmpeg_command = write_replaced_media_to_disk(output_filename, video_arr,
+                                                    None if has_audio_extension else video_file,
+                                                    median_slope=median_slope)
       del video_arr
     else:
       video_offset = video_times[0] - audio_desc_times[0]
@@ -1152,14 +1163,14 @@ def combine(video, audio, stretch_audio=False, yes=False, prepend="ad_", no_pitc
       after_start_key_frame = get_closest_key_frame_time(video_file, video_offset)
       print("  processing output file...                   \r", end='')
       setts_cmd = encode_fit_as_ffmpeg_expr(audio_desc_times, video_times, video_offset)
-      write_replaced_media_to_disk(output_filename, None, video_file, audio_desc_file,
-                                   setts_cmd, video_offset, after_start_key_frame,
-                                   median_slope=median_slope)
+      ffmpeg_command = write_replaced_media_to_disk(output_filename, None, video_file, audio_desc_file,
+                                                    setts_cmd, video_offset, after_start_key_frame,
+                                                    median_slope=median_slope)
     
     if PLOT_ALIGNMENT_TO_FILE:
       plot_filename_no_ext = os.path.join(alignment_dir, os.path.splitext(os.path.split(video_file)[1])[0])
       plot_alignment(plot_filename_no_ext, path, audio_desc_times, video_times, similarity_percent,
-                     median_slope, stretch_audio, no_pitch_correction)
+                     median_slope, stretch_audio, no_pitch_correction, ffmpeg_command)
   print("All files processed.       ")
 
 if wx is not None:
