@@ -223,7 +223,7 @@ def plot_alignment(plot_filename_no_ext, path, audio_times, video_times, similar
             f"{str_from_time(video_times[i+1])} aligning with audio from " + \
             f"{str_from_time(audio_times[i])} to {str_from_time(audio_times[i+1])}", file=file)
     print("", file=file)
-    print("FFmpeg command (Windows command prompt format):", file=file)
+    print("FFmpeg command:", file=file)
     print(ffmpeg_command, file=file)
 
 # use the smooth alignment to replace runs of video sound with corresponding described audio
@@ -511,6 +511,7 @@ def write_replaced_media_to_disk(output_filename, media_arr, video_file=None, au
   # convert ffmpeg command to Windows Command Prompt command line for logging
   try:
     ffmpeg_command = subprocess.list2cmdline(ffmpeg.compile(write_command, cmd=get_ffmpeg()))
+    ffmpeg_command = ffmpeg_command.replace('\\','/')
   except:
     ffmpeg_command = ""
   return ffmpeg_command
