@@ -1,4 +1,4 @@
-__version__ = '2.0.8'
+__version__ = '2.0.9'
 
 # combines videos with matching audio files (e.g. audio descriptions)
 # input: video or folder of videos and an audio file or folder of audio files
@@ -222,9 +222,10 @@ def plot_alignment(plot_filename_no_ext, path, audio_times, video_times, similar
       print(f"Rate change of {(slope-1.)*100:8.1f}% from {str_from_time(video_times[i])} to " + \
             f"{str_from_time(video_times[i+1])} aligning with audio from " + \
             f"{str_from_time(audio_times[i])} to {str_from_time(audio_times[i+1])}", file=file)
-    print("", file=file)
-    print("FFmpeg command:", file=file)
-    print(ffmpeg_command, file=file)
+    if not stretch_audio:
+      print("", file=file)
+      print("FFmpeg command:", file=file)
+      print(ffmpeg_command, file=file)
 
 # use the smooth alignment to replace runs of video sound with corresponding described audio
 def replace_aligned_segments(video_arr, audio_desc_arr, audio_desc_times, video_times, no_pitch_correction):
@@ -508,10 +509,16 @@ def write_replaced_media_to_disk(output_filename, media_arr, video_file=None, au
                                      "disposition:a:0": "default+visual_impaired+descriptions",
                                      "metadata:s:a:0": "title=AD"}).overwrite_output()
     run_ffmpeg_command(write_command, f"write output file: {output_filename}")
-  # convert ffmpeg command to Windows Command Prompt command line for logging
+  # convert ffmpeg command to universal command line for logging
   try:
     ffmpeg_command = subprocess.list2cmdline(ffmpeg.compile(write_command, cmd=get_ffmpeg()))
-    ffmpeg_command = ffmpeg_command.replace('\\','/')
+    # convert Windows backslashes in filenames to forward slashes
+    ffmpeg_command = ffmpeg_command.replace('\\', '/')
+    # remove quotes around setts_cmd expressions and add escapes to their commas
+    ffmpeg_command = ffmpeg_command.replace('\'', '')
+    ffmpeg_command = ffmpeg_command.replace(',', '\\,')
+    # remove output suppression
+    ffmpeg_command = ffmpeg_command.replace(' -loglevel error', '')
   except:
     ffmpeg_command = ""
   return ffmpeg_command
