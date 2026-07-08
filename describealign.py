@@ -1,4 +1,4 @@
-__version__ = '2.1.0'
+__version__ = '2.1.1'
 
 # combines videos with matching audio files (e.g. audio descriptions)
 # input: video or folder of videos and an audio file or folder of audio files
@@ -515,7 +515,6 @@ def write_replaced_media_to_disk(output_filename, media_arr, video_file=None, au
     # convert Windows backslashes in filenames to forward slashes
     ffmpeg_command = ffmpeg_command.replace('\\', '/')
     # remove quotes around setts_cmd expressions and add escapes to their commas
-    ffmpeg_command = ffmpeg_command.replace('\'', '')
     ffmpeg_command = ffmpeg_command.replace(',', '\\,')
     # remove output suppression
     ffmpeg_command = ffmpeg_command.replace(' -loglevel error', '')
