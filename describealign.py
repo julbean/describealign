@@ -1,4 +1,4 @@
-__version__ = '2.0.9'
+__version__ = '2.1.0'
 
 # combines videos with matching audio files (e.g. audio descriptions)
 # input: video or folder of videos and an audio file or folder of audio files
@@ -202,7 +202,7 @@ def plot_alignment(plot_filename_no_ext, path, audio_times, video_times, similar
   plt.tight_layout()
   plt.savefig(plot_filename_no_ext + '.png', dpi=400)
   plt.clf()
-  with open(plot_filename_no_ext + '.txt', 'w') as file:
+  with open(plot_filename_no_ext + '.txt', 'w', encoding="utf-8") as file:
     parameters = {'stretch_audio':stretch_audio, 'no_pitch_correction':no_pitch_correction}
     print(f"Parameters: {parameters}", file=file)
     print(f"Version: {__version__}", file=file)
@@ -1043,7 +1043,10 @@ def combine(video, audio, stretch_audio=False, yes=False, prepend="ad_", no_pitc
     print("")
     print("One or more audio files found in video input. Was this intentional?")
     print("If not, press ctrl+c to kill this script.")
-    input("If this was intended, press Enter to continue...")
+    try:
+      input("If this was intended, press Enter to continue...")
+    except KeyboardInterrupt:
+      return
     print("")
   audio_desc_files, _ = get_sorted_filenames(audio, AUDIO_EXTENSIONS)
   if len(video_files) != len(audio_desc_files):
@@ -1065,7 +1068,10 @@ def combine(video, audio, stretch_audio=False, yes=False, prepend="ad_", no_pitc
   if yes == False:
     print("Are the above input file pairings correct?")
     print("If not, press ctrl+c to kill this script.")
-    input("If they are correct, press Enter to continue...")
+    try:
+      input("If they are correct, press Enter to continue...")
+    except KeyboardInterrupt:
+      return
     print("")
   
   # if ffmpeg isn't installed, install it
@@ -1706,7 +1712,7 @@ if wx is not None:
       dialog = wx.FileDialog(self, wildcard=self.list_ctrl_file_types_browse[list_ctrl], style=wx.FD_MULTIPLE)
       if dialog.ShowModal() == wx.ID_OK:
         files = dialog.GetPaths()
-        self.populate_list_ctrl(list_ctrl, files)
+        self.populate_list_ctrl(list_ctrl, natsort.os_sorted(files))
     
     def delete_from_list_ctrl(self, event):
       if event.GetKeyCode() == wx.WXK_DELETE:
