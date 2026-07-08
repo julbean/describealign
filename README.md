@@ -1,5 +1,5 @@
 # describealign
-Combines videos with matching audio files (e.g. audio descriptions). Works by aligning parts of the audio file to matching parts of the video's sound.
+Combines videos with matching audio files (e.g. audio descriptions) with a simple, fully accessible GUI. Works by aligning parts of the audio file to matching parts of the video's sound.
 
 
 ## Quickstart
@@ -21,7 +21,7 @@ The combined media is saved in the folder "videos_with_ad" placed in the directo
 
 ### binary method
 
-Windows and Mac users can download and unzip the [latest release](https://github.com/julbean/describealign/releases/latest), then double click on describealign.exe to open the GUI.
+Windows and Mac users can download the [latest release](https://github.com/julbean/describealign/releases/latest), then double click on describealign.exe to open the GUI.
 
 Note for Mac binary users: To open the binary, you'll need to ctrl+click (or right click) on the binary, then click "Open" and then click "Open" again in the window that pops up. This minor annoyance is a result of my unwillingness to pay Apple $100 a year.
 
@@ -77,9 +77,10 @@ This plot shows a number of small skips starting around 10 minutes in, which add
 A text version of each plot is saved alongside it:
 
 ```
-Parameters: {'stretch_audio': False, 'no_pitch_correction': False}
-Version Hash: 8079dedc
-Input file similarity: 50.70%
+Parameters: {'stretch_audio': True, 'no_pitch_correction': False}
+Version: 2.1.0
+Script Hash: d5880573
+Input file similarity: 50.79%
 Main changes needed to video to align it to audio input:
 Start Offset: 201.81 seconds
 Median Rate Change: 0.00%
